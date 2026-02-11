@@ -1,0 +1,29 @@
+<div class="card">
+  <div class="h1">Login</div>
+  <p class="p">Bitte anmelden, um das Bestellsystem zu nutzen.</p>
+
+  <form class="form" method="POST" action="/login">
+    <label class="label">
+      Benutzername
+      <input class="input" name="username" autocomplete="username" required />
+    </label>
+
+    <label class="label">
+      Passwort
+      <input class="input" name="password" type="password" autocomplete="current-password" required />
+    </label>
+
+    <button class="btn btn-primary" type="submit">Anmelden</button>
+  </form>
+
+  <% if (error) { %>
+    <div class="alert alert-danger"><%= error %></div>
+  <% } %>
+
+  <div class="hint">
+    Demo-Logins:<br/>
+    <span class="muted">admin / admin123</span><br/>
+    <span class="muted">filiale1 / filiale123</span><br/>
+    <span class="muted">b2b1 / b2b123</span>
+  </div>
+</div>
