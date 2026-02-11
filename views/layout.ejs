@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title || "Bunca Rösterei" %></title>
+
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <div class="brand-text">
+          <div class="brand-title">Bunca Rösterei</div>
+          <div class="brand-subtitle"><%= subtitle || "Bestellsystem" %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button class="icon-btn" id="menuBtn" aria-label="Menü öffnen">☰</button>
+    </div>
+  </header>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- Drawer Menu -->
+  <aside class="drawer" id="drawer" aria-label="Menü">
+    <div class="drawer-header">
+      <div class="drawer-title">Menü</div>
+      <button class="icon-btn" id="closeBtn" aria-label="Menü schließen">✕</button>
+    </div>
+
+    <nav class="drawer-nav">
+      <% if (nav && nav.length) { %>
+        <% nav.forEach(item => { %>
+          <a class="nav-link <%= item.active ? 'active' : '' %>" href="<%= item.href %>">
+            <span class="nav-icon"><%= item.icon || "•" %></span>
+            <span><%= item.label %></span>
+          </a>
+        <% }) %>
+      <% } else { %>
+        <div class="nav-empty">Kein Menü verfügbar.</div>
+      <% } %>
+    </nav>
+
+    <div class="drawer-footer">
+      <% if (userLabel) { %>
+        <div class="user-pill">Angemeldet als: <strong><%= userLabel %></strong></div>
+      <% } %>
+      <a class="logout-link" href="/logout">Abmelden</a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="container fade-in">
+    <%- body %>
+  </main>
+
+  <script>
+    const drawer = document.getElementById('drawer');
+    const overlay = document.getElementById('overlay');
+    const menuBtn = document.getElementById('menuBtn');
+    const closeBtn = document.getElementById('closeBtn');
+
+    function openMenu() {
+      drawer.classList.add('open');
+      overlay.classList.add('show');
+      document.body.classList.add('no-scroll');
+    }
+
+    function closeMenu() {
+      drawer.classList.remove('open');
+      overlay.classList.remove('show');
+      document.body.classList.remove('no-scroll');
+    }
+
+    menuBtn && menuBtn.addEventListener('click', openMenu);
+    closeBtn && closeBtn.addEventListener('click', closeMenu);
+    overlay && overlay.addEventListener('click', closeMenu);
+
+    // Close menu after clicking a nav link (tablet friendly)
+    document.querySelectorAll('.nav-link').forEach(a => {
+      a.addEventListener('click', () => closeMenu());
+    });
+  </script>
+
+</body>
+</html>
