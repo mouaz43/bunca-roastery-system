@@ -1,0 +1,45 @@
+<div class="card">
+  <div class="h1">Neue Bestellung</div>
+  <p class="p">Schnell eine Bestellung erstellen (MVP: 1 Position).</p>
+
+  <form class="form" method="post" action="/orders/new">
+    <label class="label">
+      Kaffeesorte
+      <select class="input" name="coffee_id" required>
+        <option value="">Bitte wählen…</option>
+        <% coffees.forEach(c => { %>
+          <option value="<%= c.id %>"><%= c.name %></option>
+        <% }) %>
+      </select>
+    </label>
+
+    <label class="label">
+      Größe
+      <select class="input" name="size" required>
+        <option value="1kg">1kg</option>
+        <option value="5kg">5kg</option>
+        <option value="11kg">11kg</option>
+      </select>
+    </label>
+
+    <label class="label">
+      Menge
+      <input class="input" type="number" name="qty" min="1" step="1" value="1" required />
+    </label>
+
+    <label class="label">
+      Notiz (optional)
+      <input class="input" name="note" placeholder="z.B. Lieferung bis Freitag" />
+    </label>
+
+    <button class="btn btn-primary" type="submit">Bestellung speichern</button>
+
+    <% if (error) { %>
+      <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+
+    <% if (ok) { %>
+      <div class="alert"><%= ok %></div>
+    <% } %>
+  </form>
+</div>
