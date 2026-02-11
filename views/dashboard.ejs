@@ -1,57 +1,18 @@
 <div class="card">
-  <div class="h1"><%= title %></div>
-  <p class="p">
-    Willkommen, <strong><%= userLabel %></strong>.
-    Rolle: <strong><%= role %></strong>
-  </p>
+  <div class="h1">Dashboard</div>
+  <p class="p">Willkommen zurück. Kurze Übersicht:</p>
 
-  <% if (!page) { %>
-    <div class="hint">
-      Nutze das Menü (☰), um eine neue Bestellung zu erstellen oder deine Bestellungen zu sehen.
+  <div class="form" style="margin-top:16px;">
+    <div class="alert">
+      <strong>Meine Bestellungen:</strong> <%= stats.myOrders %><br/>
+      <strong>Offen / In Arbeit:</strong> <%= stats.openOrders %>
     </div>
-  <% } %>
 
-  <% if (page === "new-order") { %>
-    <div class="hint">Artikel als JSON hinzufügen (später machen wir ein schönes UI dafür).</div>
+    <a class="btn btn-primary" href="/orders/new">Neue Bestellung</a>
+    <a class="btn" href="/orders/mine">Meine Bestellungen</a>
 
-    <form class="form" method="POST" action="/orders/new">
-      <label class="label">
-        Kundenname / Filiale
-        <input class="input" name="customer_name" placeholder="z.B. Filiale 1" />
-      </label>
-
-      <label class="label">
-        Items JSON (Beispiel unten)
-        <textarea class="input" name="items" rows="6" required>[{"name":"Espresso","qty":5,"unit":"1kg"}]</textarea>
-      </label>
-
-      <button class="btn btn-primary" type="submit">Bestellung speichern</button>
-    </form>
-
-    <% if (error) { %>
-      <div class="alert alert-danger"><%= error %></div>
+    <% if (user && user.role === 'admin') { %>
+      <a class="btn" href="/admin">Adminbereich</a>
     <% } %>
-  <% } %>
-
-  <% if (page === "orders") { %>
-    <div class="hint">Deine letzten Bestellungen:</div>
-
-    <% if (!orders || !orders.length) { %>
-      <div class="alert">Noch keine Bestellungen vorhanden.</div>
-    <% } else { %>
-      <div class="form">
-        <% orders.forEach(o => { %>
-          <div class="card">
-            <div class="h1" style="font-size:16px; margin-bottom:6px;">Bestellung #<%= o.id %></div>
-            <div class="muted">Kunde: <%= o.customer_name %></div>
-            <div class="muted">Status: <%= o.status %></div>
-            <div class="muted">Datum: <%= o.created_at %></div>
-            <div style="margin-top:10px;">
-              <a class="btn" href="/orders/<%= o.id %>/pdf">PDF öffnen</a>
-            </div>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
-  <% } %>
+  </div>
 </div>
