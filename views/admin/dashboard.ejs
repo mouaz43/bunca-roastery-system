@@ -1,44 +1,15 @@
 <div class="card">
-  <div class="h1"><%= title %></div>
-  <p class="p">Adminbereich – Übersicht & Steuerung.</p>
+  <div class="h1">Admin Dashboard</div>
+  <p class="p">Rösterei-Übersicht (MVP).</p>
 
-  <% if (!page) { %>
-    <div class="hint">
-      Nutze das Menü (☰) für Bestellungen.
+  <div class="form">
+    <div class="alert">
+      <strong>Benutzer:</strong> <%= totals.users %><br/>
+      <strong>Bestellungen gesamt:</strong> <%= totals.orders %><br/>
+      <strong>Offen / In Arbeit:</strong> <%= totals.open %>
     </div>
-  <% } %>
 
-  <% if (page === "orders") { %>
-    <div class="hint">Alle Bestellungen:</div>
-
-    <% if (!orders || !orders.length) { %>
-      <div class="alert">Keine Bestellungen vorhanden.</div>
-    <% } else { %>
-      <div class="form">
-        <% orders.forEach(o => { %>
-          <div class="card">
-            <div class="h1" style="font-size:16px; margin-bottom:6px;">Bestellung #<%= o.id %></div>
-            <div class="muted">Von: <%= o.user_label %></div>
-            <div class="muted">Kunde: <%= o.customer_name %></div>
-            <div class="muted">Status: <%= o.status %></div>
-            <div class="muted">Datum: <%= o.created_at %></div>
-
-            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-              <a class="btn" href="/orders/<%= o.id %>/pdf">PDF öffnen</a>
-
-              <form method="POST" action="/admin/orders/<%= o.id %>/status" style="display:flex; gap:10px; flex-wrap:wrap;">
-                <select class="input" name="status" style="min-width:180px;">
-                  <option <%= o.status==='Offen' ? 'selected' : '' %>>Offen</option>
-                  <option <%= o.status==='In Arbeit' ? 'selected' : '' %>>In Arbeit</option>
-                  <option <%= o.status==='Versandt' ? 'selected' : '' %>>Versandt</option>
-                  <option <%= o.status==='Abgeschlossen' ? 'selected' : '' %>>Abgeschlossen</option>
-                </select>
-                <button class="btn btn-primary" type="submit">Status speichern</button>
-              </form>
-            </div>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
-  <% } %>
+    <a class="btn btn-primary" href="/admin/coffees">Kaffeesorten</a>
+    <a class="btn" href="/admin/users">Benutzer</a>
+  </div>
 </div>
