@@ -1,0 +1,16 @@
+{
+  "name": "bunca-roastery-system",
+  "version": "1.0.0",
+  "description": "Internes Produktions- und Bestellsystem der Bunca Rösterei (Filialen + B2B).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-ejs-layouts": "^2.5.1",
+    "pg": "^8.12.0"
+  }
+}
