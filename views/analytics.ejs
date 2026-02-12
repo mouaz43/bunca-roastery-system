@@ -1,25 +1,21 @@
-<%
-// views/analytics.ejs
-// Erwartete Variablen vom Server:
-// - metrics: Object (optional)
-// - title, pageTitle, pageSubtitle, activeNav
-%>
-
 <div class="card-grid">
   <div class="card">
-    <h2>Verbrauch und Nachfrage</h2>
-    <p>Platzhalter: Trendansicht für Filialen und B2B, pro Kaffeesorte.</p>
+    <h2>Bestellungen gesamt</h2>
+    <p><strong><%= totalOrders %></strong></p>
   </div>
 
   <div class="card">
-    <h2>Produktion und Yield</h2>
-    <p>Platzhalter: Roh zu Röst Output, Verlustquote, Abweichungen pro Charge.</p>
+    <h2>Ausgeliefert</h2>
+    <p><strong><%= delivered %></strong></p>
   </div>
-</div>
 
-<div style="margin-top: 14px;">
-  <div class="card" style="grid-column: span 12;">
-    <h2>Auswertungen</h2>
-    <p>Platzhalter: Tabellen und Diagramme für Wochenvergleich, Topseller, Abweichungen und Warnungen.</p>
+  <div class="card">
+    <h2>Platzhalter</h2>
+    <p>Hier kommen Trends und Wochenvergleiche.</p>
+  </div>
+
+  <div class="card">
+    <h2>Platzhalter</h2>
+    <p>Hier kommen Yield und Abweichungen pro Charge.</p>
   </div>
 </div>
