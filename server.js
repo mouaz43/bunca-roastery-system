@@ -3,6 +3,7 @@
 
 const path = require("path");
 const express = require("express");
+const expressLayouts = require("express-ejs-layouts");
 
 const pageRoutes = require("./routes/pageRoutes");
 
@@ -25,10 +26,14 @@ app.use(express.static(path.join(__dirname, "public")));
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// Layouts
+app.use(expressLayouts);
+app.set("layout", "partials/layout");
+
 // UI pages
 app.use("/", pageRoutes);
 
-// API placeholders (später echte API)
+// API placeholders
 app.use("/api/orders", orderRoutes);
 app.use("/api/production", productionRoutes);
 app.use("/api/inventory", inventoryRoutes);
