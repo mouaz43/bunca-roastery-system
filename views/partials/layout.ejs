@@ -9,6 +9,14 @@
 
 <body>
   <%
+    // Safe defaults to avoid ReferenceError in EJS
+    var safeActiveNav = (typeof activeNav !== "undefined" && activeNav) ? activeNav : "";
+    var safePageTitle = (typeof pageTitle !== "undefined" && pageTitle) ? pageTitle : (title ? title : "Übersicht");
+    var safePageSubtitle = (typeof pageSubtitle !== "undefined" && pageSubtitle) ? pageSubtitle : "";
+
+    var safePrimaryAction = (typeof primaryAction !== "undefined" && primaryAction) ? primaryAction : null;
+    var safeSecondaryAction = (typeof secondaryAction !== "undefined" && secondaryAction) ? secondaryAction : null;
+
     var statusVariant = "ok";
     var statusText = "Betrieb normal";
 
@@ -24,6 +32,10 @@
       if (user.role) userRole = user.role;
       if (user.location) userLocation = user.location;
     }
+
+    var safeHintTitle = (typeof hintTitle !== "undefined" && hintTitle) ? hintTitle : "Seitenhinweis";
+    var safeHintLines = (typeof hintLines !== "undefined" && hintLines && hintLines.length) ? hintLines : null;
+    var safeHintMeta = (typeof hintMeta !== "undefined" && hintMeta) ? hintMeta : null;
   %>
 
   <div class="app-shell">
@@ -37,29 +49,29 @@
       </div>
 
       <nav class="nav">
-        <a class="nav-item <%= (activeNav === 'dashboard') ? 'is-active' : '' %>" href="/dashboard">
+        <a class="nav-item <%= (safeActiveNav === 'dashboard') ? 'is-active' : '' %>" href="/dashboard">
           <span class="nav-label">Dashboard</span>
         </a>
 
-        <a class="nav-item <%= (activeNav === 'orders') ? 'is-active' : '' %>" href="/orders">
+        <a class="nav-item <%= (safeActiveNav === 'orders') ? 'is-active' : '' %>" href="/orders">
           <span class="nav-label">Bestellungen</span>
         </a>
 
-        <a class="nav-item <%= (activeNav === 'production') ? 'is-active' : '' %>" href="/production">
+        <a class="nav-item <%= (safeActiveNav === 'production') ? 'is-active' : '' %>" href="/production">
           <span class="nav-label">Produktion</span>
         </a>
 
-        <a class="nav-item <%= (activeNav === 'inventory') ? 'is-active' : '' %>" href="/inventory">
+        <a class="nav-item <%= (safeActiveNav === 'inventory') ? 'is-active' : '' %>" href="/inventory">
           <span class="nav-label">Lager</span>
         </a>
 
-        <a class="nav-item <%= (activeNav === 'analytics') ? 'is-active' : '' %>" href="/analytics">
+        <a class="nav-item <%= (safeActiveNav === 'analytics') ? 'is-active' : '' %>" href="/analytics">
           <span class="nav-label">Analysen</span>
         </a>
 
         <div class="nav-sep"></div>
 
-        <a class="nav-item <%= (activeNav === 'settings') ? 'is-active' : '' %>" href="/settings">
+        <a class="nav-item <%= (safeActiveNav === 'settings') ? 'is-active' : '' %>" href="/settings">
           <span class="nav-label">Einstellungen</span>
         </a>
       </nav>
@@ -86,19 +98,19 @@
     <main class="main">
       <header class="topbar">
         <div class="topbar-left">
-          <h1 class="page-title"><%= pageTitle ? pageTitle : (title ? title : "Übersicht") %></h1>
-          <% if (pageSubtitle) { %>
-            <div class="page-subtitle"><%= pageSubtitle %></div>
+          <h1 class="page-title"><%= safePageTitle %></h1>
+          <% if (safePageSubtitle) { %>
+            <div class="page-subtitle"><%= safePageSubtitle %></div>
           <% } %>
         </div>
 
         <div class="topbar-right">
-          <% if (primaryAction) { %>
-            <a class="btn btn-primary" href="<%= primaryAction.href %>"><%= primaryAction.label %></a>
+          <% if (safePrimaryAction && safePrimaryAction.href && safePrimaryAction.label) { %>
+            <a class="btn btn-primary" href="<%= safePrimaryAction.href %>"><%= safePrimaryAction.label %></a>
           <% } %>
 
-          <% if (secondaryAction) { %>
-            <a class="btn btn-secondary" href="<%= secondaryAction.href %>"><%= secondaryAction.label %></a>
+          <% if (safeSecondaryAction && safeSecondaryAction.href && safeSecondaryAction.label) { %>
+            <a class="btn btn-secondary" href="<%= safeSecondaryAction.href %>"><%= safeSecondaryAction.label %></a>
           <% } %>
         </div>
       </header>
@@ -109,12 +121,12 @@
 
       <footer class="hint">
         <div class="hint-inner">
-          <div class="hint-title"><%= hintTitle ? hintTitle : "Seitenhinweis" %></div>
+          <div class="hint-title"><%= safeHintTitle %></div>
 
-          <% if (hintLines && hintLines.length) { %>
+          <% if (safeHintLines) { %>
             <div class="hint-text">
-              <% for (var i = 0; i < hintLines.length; i++) { %>
-                <div class="hint-line"><%= hintLines[i] %></div>
+              <% for (var i = 0; i < safeHintLines.length; i++) { %>
+                <div class="hint-line"><%= safeHintLines[i] %></div>
               <% } %>
             </div>
           <% } else { %>
@@ -123,10 +135,14 @@
             </div>
           <% } %>
 
-          <% if (hintMeta) { %>
+          <% if (safeHintMeta) { %>
             <div class="hint-meta">
-              <% if (hintMeta.left) { %><span class="hint-meta-item"><%= hintMeta.left %></span><% } %>
-              <% if (hintMeta.right) { %><span class="hint-meta-item"><%= hintMeta.right %></span><% } %>
+              <% if (safeHintMeta.left) { %>
+                <span class="hint-meta-item"><%= safeHintMeta.left %></span>
+              <% } %>
+              <% if (safeHintMeta.right) { %>
+                <span class="hint-meta-item"><%= safeHintMeta.right %></span>
+              <% } %>
             </div>
           <% } %>
         </div>
