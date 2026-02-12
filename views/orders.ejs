@@ -1,26 +1,165 @@
 <%
-// views/orders.ejs
-// Erwartete Variablen vom Server:
-// - orders: Array (optional)
-// - title, pageTitle, pageSubtitle, activeNav
-// - hintTitle, hintLines, hintMeta
+function channelLabel(o){
+  return o.channel === "B2B" ? "B2B" : "Filiale";
+}
+function targetLabel(o){
+  if (o.channel === "B2B") return o.customerName || "B2B Kunde";
+  const s = shops.find(x => x.id === o.shopId);
+  return s ? s.name : "Filiale";
+}
+
+function statusClass(status){
+  if(status === "ENTWURF") return "badge";
+  if(status === "EINGEGANGEN") return "badge warn";
+  if(status === "FREIGEGEBEN") return "badge ok";
+  if(status === "IN_PRODUKTION") return "badge";
+  if(status === "VERPACKT") return "badge";
+  if(status === "AUSGELIEFERT") return "badge";
+  return "badge";
+}
+
+function canAdvance(status){
+  const idx = statuses.indexOf(status);
+  return idx >= 0 && idx < statuses.length - 1;
+}
+
+function nextStatus(status){
+  const idx = statuses.indexOf(status);
+  if(idx < 0 || idx >= statuses.length - 1) return status;
+  return statuses[idx + 1];
+}
 %>
 
 <div class="card-grid">
   <div class="card">
-    <h2>Aktuelle Bestellungen</h2>
-    <p>Übersicht über Bestellungen von Filialen und B2B-Kunden, inklusive Status und Priorität.</p>
+    <h2>Neue Bestellung erfassen</h2>
+    <p>Erstellen Sie eine Filial- oder B2B-Bestellung. Mengen in kg.</p>
   </div>
 
   <div class="card">
-    <h2>Schnellaktionen</h2>
-    <p>Neue Bestellung anlegen oder offene Bestellungen prüfen und freigeben.</p>
+    <h2>Statuslogik</h2>
+    <p>Freigeben bedeutet: Diese Mengen zählen für den Produktionsbedarf.</p>
   </div>
 </div>
 
-<div style="margin-top: 14px;">
-  <div class="card" style="grid-column: span 12;">
-    <h2>Liste</h2>
-    <p>Platzhalter: Hier kommt später die Tabelle mit Bestellungen, Filiale Kunde, Artikel, Menge, Termin, Status.</p>
-  </div>
+<div style="margin-top: 14px;" class="card">
+  <h2>Neue Bestellung</h2>
+
+  <form method="POST" action="/actions/orders/create" class="form">
+    <div class="form-row">
+      <label class="label">Kanal</label>
+      <select name="channel" class="input" required>
+        <option value="FILIALE">Filiale</option>
+        <option value="B2B">B2B</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label class="label">Filiale</label>
+      <select name="shopId" class="input">
+        <option value="">Keine (bei B2B)</option>
+        <% shops.forEach(function(s){ %>
+          <option value="<%= s.id %>"><%= s.name %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label class="label">B2B Kunde</label>
+      <input name="customerName" class="input" placeholder="Nur bei B2B ausfüllen" />
+    </div>
+
+    <div class="form-row">
+      <label class="label">Lieferdatum</label>
+      <input type="date" name="deliveryDate" class="input" required />
+    </div>
+
+    <div class="form-row">
+      <label class="label">Positionen</label>
+      <div class="mini-grid">
+        <select name="item1CoffeeId" class="input">
+          <% coffees.forEach(function(c){ %>
+            <option value="<%= c.id %>"><%= c.name %></option>
+          <% }) %>
+        </select>
+        <input type="number" step="0.1" min="0" name="item1Kg" class="input" placeholder="kg" />
+
+        <select name="item2CoffeeId" class="input">
+          <option value="">Keine</option>
+          <% coffees.forEach(function(c){ %>
+            <option value="<%= c.id %>"><%= c.name %></option>
+          <% }) %>
+        </select>
+        <input type="number" step="0.1" min="0" name="item2Kg" class="input" placeholder="kg" />
+      </div>
+      <div class="help">Tipp: Starten Sie mit 1–2 Positionen. Später bauen wir dynamische Positionen.</div>
+    </div>
+
+    <div class="form-row">
+      <label class="label">Notiz</label>
+      <input name="note" class="input" placeholder="Optional" />
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Bestellung anlegen</button>
+      <a class="btn btn-secondary" href="/orders">Zurücksetzen</a>
+    </div>
+  </form>
+</div>
+
+<div style="margin-top: 14px;" class="card">
+  <h2>Bestellliste</h2>
+
+  <% if (!orders || !orders.length) { %>
+    <p>Keine Bestellungen vorhanden.</p>
+  <% } else { %>
+    <div class="table">
+      <div class="t-head">
+        <div>ID</div>
+        <div>Kanal</div>
+        <div>Kunde Filiale</div>
+        <div>Lieferdatum</div>
+        <div>Status</div>
+        <div>Aktionen</div>
+      </div>
+
+      <% orders.forEach(function(o){ %>
+        <div class="t-row">
+          <div class="mono"><%= o.id.slice(0, 8) %></div>
+          <div><%= channelLabel(o) %></div>
+          <div><%= targetLabel(o) %></div>
+          <div><%= o.deliveryDate %></div>
+          <div><span class="<%= statusClass(o.status) %>"><%= o.status %></span></div>
+          <div class="actions">
+            <% if (canAdvance(o.status)) { %>
+              <form method="POST" action="/actions/orders/<%= o.id %>/advance">
+                <button class="btn btn-primary" type="submit">Weiter zu <%= nextStatus(o.status) %></button>
+              </form>
+            <% } else { %>
+              <span class="muted">Abgeschlossen</span>
+            <% } %>
+
+            <form method="POST" action="/actions/orders/<%= o.id %>/delete">
+              <button class="btn btn-secondary" type="submit">Löschen</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="t-subrow">
+          <div class="sub-left">
+            <div class="sub-title">Positionen</div>
+            <div class="sub-text">
+              <% o.items.forEach(function(it, idx){ %>
+                <span><%= it.coffeeName %>: <strong><%= it.kg %> kg</strong><%= idx < o.items.length-1 ? " | " : "" %></span>
+              <% }) %>
+            </div>
+          </div>
+          <div class="sub-right">
+            <div class="sub-title">Notiz</div>
+            <div class="sub-text"><%= o.note || "-" %></div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
 </div>
