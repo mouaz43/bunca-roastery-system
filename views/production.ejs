@@ -1,25 +1,44 @@
-<%
-// views/production.ejs
-// Erwartete Variablen vom Server:
-// - batches: Array (optional)
-// - title, pageTitle, pageSubtitle, activeNav
-%>
-
 <div class="card-grid">
   <div class="card">
-    <h2>Produktionsübersicht</h2>
-    <p>Geplante und laufende Röstchargen. Status und Auslastung auf einen Blick.</p>
+    <h2>Röstbedarf</h2>
+    <p>Summe aller Mengen aus freigegebenen Bestellungen, die noch nicht ausgeliefert sind.</p>
   </div>
 
   <div class="card">
-    <h2>Auslastung</h2>
-    <p>Platzhalter: Kapazitätsbalken und Hinweise bei Überlastung.</p>
+    <h2>Planung</h2>
+    <p>Platzhalter: Später erzeugen wir daraus Chargenvorschläge nach optimaler Batchgröße.</p>
   </div>
 </div>
 
-<div style="margin-top: 14px;">
-  <div class="card" style="grid-column: span 12;">
-    <h2>Chargen</h2>
-    <p>Platzhalter: Hier kommt später eine Kanban-Ansicht oder Tabelle (Zu rösten, Röstung, Abkühlung, Verpackt, Ausgeliefert).</p>
-  </div>
+<div style="margin-top: 14px;" class="card">
+  <h2>Bedarf pro Sorte</h2>
+
+  <% if (!roastDemand || !roastDemand.length) { %>
+    <p>Aktuell gibt es keinen freigegebenen Bedarf.</p>
+  <% } else { %>
+    <div class="table">
+      <div class="t-head">
+        <div>Sorte</div>
+        <div>Gesamt kg</div>
+        <div>Rohkaffee kg</div>
+        <div>Röstkaffee kg</div>
+        <div>Hinweis</div>
+      </div>
+
+      <% roastDemand.forEach(function(r){ 
+        const green = inventory?.greenBeansKg?.[r.coffeeId] ?? 0;
+        const roasted = inventory?.roastedKg?.[r.coffeeId] ?? 0;
+        const needFromGreen = Math.max(0, r.kg - roasted);
+        const risk = green < needFromGreen ? "Rohkaffee knapp" : "OK";
+      %>
+        <div class="t-row">
+          <div><%= r.coffeeName %></div>
+          <div><strong><%= r.kg %></strong></div>
+          <div><%= green %></div>
+          <div><%= roasted %></div>
+          <div><span class="badge <%= risk === 'OK' ? 'ok' : 'warn' %>"><%= risk %></span></div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
 </div>
