@@ -1,10 +1,5 @@
 // controllers/pageController.js
-// Render-Controller für alle UI-Seiten.
-// Jede Seite bekommt:
-// - title, pageTitle, pageSubtitle
-// - activeNav (für Sidebar Highlight)
-// - hintTitle, hintLines, hintMeta (Seitenhinweis unten)
-// - systemStatus (Status Pill in Sidebar)
+const store = require("../data/store");
 
 function baseViewData({ activeNav, pageTitle, pageSubtitle }) {
   return {
@@ -13,117 +8,153 @@ function baseViewData({ activeNav, pageTitle, pageSubtitle }) {
     pageSubtitle,
     activeNav,
     user: { role: "Admin", location: "Frankfurt" },
-
-    systemStatus: {
-      variant: "ok",
-      text: "Betrieb normal"
-    }
+    systemStatus: { variant: "ok", text: "Betrieb normal" }
   };
 }
 
+function buildHintMeta(left, right) {
+  return { left, right };
+}
+
 exports.renderHome = (req, res) => {
+  const orders = store.listOrders();
+  const openCount = orders.filter(o => o.status !== "AUSGELIEFERT").length;
+
   const data = {
     ...baseViewData({
       activeNav: "dashboard",
       pageTitle: "Start",
       pageSubtitle: "Schneller Überblick und Navigation"
     }),
+    orders,
+    openCount,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Diese Startseite bietet einen schnellen Einstieg in Bestellungen, Produktion, Lager und Analysen.",
-      "Nutzen Sie die Navigation links, um direkt zum gewünschten Bereich zu wechseln."
+      "Nutzen Sie die Navigation links, um Bestellungen, Produktion, Lager und Analysen schnell zu erreichen.",
+      `Aktuell sind ${openCount} Bestellungen aktiv (noch nicht ausgeliefert).`
     ],
-    hintMeta: { left: "Tipp: Cmd K für Aktionen später", right: "Stand: Platzhalter UI" }
+    hintMeta: buildHintMeta("Tipp: Bestellungen zuerst prüfen", "Status: Live Dummy-Daten")
   };
 
   res.render("home", data);
 };
 
 exports.renderDashboard = (req, res) => {
+  const orders = store.listOrders();
+  const incoming = orders.filter(o => o.status === "EINGEGANGEN").length;
+  const approved = orders.filter(o => o.status === "FREIGEGEBEN").length;
+
+  const roastDemand = store.computeRoastDemand();
+  const topDemand = roastDemand[0] ? `${roastDemand[0].coffeeName}: ${roastDemand[0].kg} kg` : "Keine freigegebenen Mengen";
+
   const data = {
     ...baseViewData({
       activeNav: "dashboard",
       pageTitle: "Dashboard",
       pageSubtitle: "Bestellungen, Produktion und Lager auf einen Blick"
     }),
+    incoming,
+    approved,
+    topDemand,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Prüfen Sie zuerst die Auslastung und kritische Bestände, bevor Sie Produktionen freigeben.",
-      "Auffälligkeiten in Bestellungen sollten vor der Planung geklärt werden."
+      "Prüfen Sie eingegangene Bestellungen und geben Sie nur korrekt geprüfte Mengen frei.",
+      `Höchster aktueller Produktionsbedarf: ${topDemand}.`
     ],
-    hintMeta: { left: "Empfehlung: Täglicher Check", right: "Status: Entwurf" }
+    hintMeta: buildHintMeta("Empfehlung: täglicher Check", "Status: Live Dummy-Daten")
   };
 
   res.render("dashboard", data);
 };
 
 exports.renderOrders = (req, res) => {
+  const orders = store.listOrders();
+
   const data = {
     ...baseViewData({
       activeNav: "orders",
       pageTitle: "Bestellungen",
       pageSubtitle: "Filialen und B2B Bestellungen verwalten"
     }),
+    orders,
+    shops: store.SHOPS,
+    coffees: store.COFFEES,
+    statuses: store.ORDER_STATUS,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Hier erfassen und prüfen Sie Bestellungen von Filialen und B2B-Kunden.",
-      "Achten Sie auf Termin, Packgröße und Status, bevor Sie die Produktion planen."
+      "Erfassen Sie neue Bestellungen und prüfen Sie Status, Termin und Mengen.",
+      "Freigeben bedeutet: Diese Mengen werden in der Produktion berücksichtigt."
     ],
-    hintMeta: { left: "Regel: Erst prüfen, dann freigeben", right: "Status: Platzhalter" }
+    hintMeta: buildHintMeta("Regel: Erst prüfen, dann freigeben", "Status: Live Dummy-Daten")
   };
 
   res.render("orders", data);
 };
 
 exports.renderProduction = (req, res) => {
+  const roastDemand = store.computeRoastDemand();
+  const inv = store.getInventory();
+
   const data = {
     ...baseViewData({
       activeNav: "production",
       pageTitle: "Produktion",
-      pageSubtitle: "Röstchargen planen, verfolgen und abschließen"
+      pageSubtitle: "Produktionsbedarf aus freigegebenen Bestellungen"
     }),
+    roastDemand,
+    inventory: inv,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Diese Seite zeigt geplante und laufende Chargen inklusive Status.",
-      "Nach Freigabe einer Charge sollten Änderungen nur kontrolliert erfolgen."
+      "Diese Seite zeigt den aggregierten Röstbedarf basierend auf freigegebenen Bestellungen.",
+      "Nutzen Sie die Werte, um Chargen effizient zu planen."
     ],
-    hintMeta: { left: "Hinweis: Chargen können gelockt werden", right: "Status: Platzhalter" }
+    hintMeta: buildHintMeta("Hinweis: Nur freigegebene Bestellungen zählen", `Lagerstand aktualisiert: ${inv.updatedAt.slice(0, 10)}`)
   };
 
   res.render("production", data);
 };
 
 exports.renderInventory = (req, res) => {
+  const inv = store.getInventory();
+
   const data = {
     ...baseViewData({
       activeNav: "inventory",
       pageTitle: "Lager",
-      pageSubtitle: "Rohkaffee, Röstkaffee und Verpackung im Blick"
+      pageSubtitle: "Rohkaffee, Röstkaffee und Verpackung verwalten"
     }),
+    inventory: inv,
+    coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Pflegen Sie Bestände regelmäßig, um Fehlmengen und Notfallbestellungen zu vermeiden.",
-      "Mindestbestände werden später automatisch als Warnung angezeigt."
+      "Pflegen Sie Bestände regelmäßig. So vermeiden Sie Notfallbestellungen.",
+      "Bestandsänderungen werden später automatisch protokolliert."
     ],
-    hintMeta: { left: "Ziel: Proaktiv statt reaktiv", right: "Status: Platzhalter" }
+    hintMeta: buildHintMeta("Ziel: proaktiv statt reaktiv", `Letzte Änderung: ${inv.updatedAt.slice(0, 19).replace("T"," ")}`)
   };
 
   res.render("inventory", data);
 };
 
 exports.renderAnalytics = (req, res) => {
+  const orders = store.listOrders();
+  const totalOrders = orders.length;
+  const delivered = orders.filter(o => o.status === "AUSGELIEFERT").length;
+
   const data = {
     ...baseViewData({
       activeNav: "analytics",
       pageTitle: "Analysen",
-      pageSubtitle: "Verbrauch, Trends und Produktionseffizienz"
+      pageSubtitle: "Kennzahlen auf Basis der vorhandenen Daten"
     }),
+    totalOrders,
+    delivered,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Analysen helfen bei der Planung: Trends, Ausreißer und Yield-Abweichungen erkennen.",
-      "Nutzen Sie die Daten, um Kapazität und Einkauf besser zu steuern."
+      "Analysen helfen bei Planung und Einkauf. Hier entstehen später Trends und Warnungen.",
+      `Aktuell: ${totalOrders} Bestellungen gesamt, ${delivered} ausgeliefert.`
     ],
-    hintMeta: { left: "Tipp: Wochenvergleich nutzen", right: "Status: Platzhalter" }
+    hintMeta: buildHintMeta("Tipp: Wochenvergleich nutzen", "Status: Live Dummy-Daten")
   };
 
   res.render("analytics", data);
@@ -134,14 +165,16 @@ exports.renderSettings = (req, res) => {
     ...baseViewData({
       activeNav: "settings",
       pageTitle: "Einstellungen",
-      pageSubtitle: "Kaffeesorten, Rollen und Systemparameter"
+      pageSubtitle: "Stammdaten und Systemparameter"
     }),
+    coffees: store.COFFEES,
+    shops: store.SHOPS,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Hier pflegen Sie Stammdaten wie Sorten, Packgrößen und Benutzerrollen.",
-      "Änderungen wirken sich auf Bestellungen, Produktion und Lagerlogik aus."
+      "Hier pflegen Sie Sorten, Filialen und später Rollen und Schwellenwerte.",
+      "Änderungen wirken sich direkt auf Bestellungen und Planung aus."
     ],
-    hintMeta: { left: "Achtung: Änderungen bewusst durchführen", right: "Status: Platzhalter" }
+    hintMeta: buildHintMeta("Achtung: Änderungen bewusst durchführen", "Status: Live Dummy-Daten")
   };
 
   res.render("settings", data);
