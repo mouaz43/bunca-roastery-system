@@ -1,25 +1,70 @@
-<%
-// views/inventory.ejs
-// Erwartete Variablen vom Server:
-// - inventory: Object (optional)
-// - title, pageTitle, pageSubtitle, activeNav
-%>
-
 <div class="card-grid">
   <div class="card">
-    <h2>Rohkaffee</h2>
-    <p>Bestand, Mindestbestand und Risikohinweise auf Basis der letzten Wochen.</p>
+    <h2>Rohkaffee Bestand</h2>
+    <p>Platzhalter: Later automatische Warnungen basierend auf Verbrauch und Forecast.</p>
   </div>
 
   <div class="card">
-    <h2>Röstkaffee und Verpackung</h2>
-    <p>Platzhalter: Bestand von geröstetem Kaffee, Beuteln, Etiketten und Kartons.</p>
+    <h2>Röstkaffee Bestand</h2>
+    <p>Aktueller Röstbestand kann als Puffer genutzt werden.</p>
   </div>
 </div>
 
-<div style="margin-top: 14px;">
-  <div class="card" style="grid-column: span 12;">
-    <h2>Bestandsänderungen</h2>
-    <p>Platzhalter: Eingänge, Ausgänge, Korrekturen und Protokoll der Änderungen.</p>
+<div style="margin-top: 14px;" class="card">
+  <h2>Bestandsübersicht</h2>
+
+  <div class="table">
+    <div class="t-head">
+      <div>Sorte</div>
+      <div>Rohkaffee kg</div>
+      <div>Röstkaffee kg</div>
+    </div>
+
+    <% coffees.forEach(function(c){ %>
+      <div class="t-row">
+        <div><%= c.name %></div>
+        <div><%= inventory.greenBeansKg[c.id] ?? 0 %></div>
+        <div><%= inventory.roastedKg[c.id] ?? 0 %></div>
+      </div>
+    <% }) %>
   </div>
+</div>
+
+<div style="margin-top: 14px;" class="card">
+  <h2>Bestand ändern</h2>
+
+  <form method="POST" action="/actions/inventory/apply" class="form">
+    <div class="form-row">
+      <label class="label">Typ</label>
+      <select name="type" class="input" required>
+        <option value="GREEN">Rohkaffee</option>
+        <option value="ROASTED">Röstkaffee</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label class="label">Sorte</label>
+      <select name="coffeeId" class="input" required>
+        <% coffees.forEach(function(c){ %>
+          <option value="<%= c.id %>"><%= c.name %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label class="label">Änderung (kg)</label>
+      <input type="number" step="0.1" name="deltaKg" class="input" required />
+      <div class="help">Positiv für Zugang, negativ für Abgang.</div>
+    </div>
+
+    <div class="form-row">
+      <label class="label">Notiz</label>
+      <input name="note" class="input" placeholder="Optional" />
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Bestand aktualisieren</button>
+      <a class="btn btn-secondary" href="/inventory">Zurücksetzen</a>
+    </div>
+  </form>
 </div>
