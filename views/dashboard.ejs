@@ -1,21 +1,21 @@
 <div class="card-grid">
   <div class="card">
-    <h2>Bestellungen</h2>
-    <p>Platzhalter: Anzahl offen, heute fällig, Auffälligkeiten.</p>
+    <h2>Eingegangen</h2>
+    <p><strong><%= incoming %></strong> Bestellungen warten auf Prüfung oder Freigabe.</p>
   </div>
 
   <div class="card">
-    <h2>Produktion</h2>
-    <p>Platzhalter: Röstmenge diese Woche, Auslastung, Chargenstatus.</p>
+    <h2>Freigegeben</h2>
+    <p><strong><%= approved %></strong> Bestellungen sind aktuell in der Produktionsplanung.</p>
   </div>
 
   <div class="card">
-    <h2>Lager</h2>
-    <p>Platzhalter: Kritische Rohkaffees, Röstkaffee, Verpackung.</p>
+    <h2>Top Bedarf</h2>
+    <p><strong><%= topDemand %></strong></p>
   </div>
 
   <div class="card">
-    <h2>Analysen</h2>
-    <p>Platzhalter: Trends, Yield, Abweichungen.</p>
+    <h2>Hinweis</h2>
+    <p>Platzhalter: Kritische Bestände und Abweichungen werden hier später angezeigt.</p>
   </div>
 </div>
