@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title || "Bunca Rösterei System" %></title>
+
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div class="brand-text">
+          <div class="brand-name">Bunca Rösterei</div>
+          <div class="brand-subtitle">Produktions und Bestellsystem</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav-item <%= activeNav === 'dashboard' ? 'is-active' : '' %>" href="/dashboard">
+          <span class="nav-label">Dashboard</span>
+        </a>
+
+        <a class="nav-item <%= activeNav === 'orders' ? 'is-active' : '' %>" href="/orders">
+          <span class="nav-label">Bestellungen</span>
+        </a>
+
+        <a class="nav-item <%= activeNav === 'production' ? 'is-active' : '' %>" href="/production">
+          <span class="nav-label">Produktion</span>
+        </a>
+
+        <a class="nav-item <%= activeNav === 'inventory' ? 'is-active' : '' %>" href="/inventory">
+          <span class="nav-label">Lager</span>
+        </a>
+
+        <a class="nav-item <%= activeNav === 'analytics' ? 'is-active' : '' %>" href="/analytics">
+          <span class="nav-label">Analysen</span>
+        </a>
+
+        <div class="nav-sep"></div>
+
+        <a class="nav-item <%= activeNav === 'settings' ? 'is-active' : '' %>" href="/settings">
+          <span class="nav-label">Einstellungen</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-pill <%= systemStatus?.variant || 'ok' %>">
+          <span class="status-dot"></span>
+          <span class="status-text"><%= systemStatus?.text || "Betrieb normal" %></span>
+        </div>
+
+        <div class="meta">
+          <div class="meta-row">
+            <span class="meta-label">Rolle</span>
+            <span class="meta-value"><%= user?.role || "Nicht angemeldet" %></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Standort</span>
+            <span class="meta-value"><%= user?.location || "Frankfurt" %></span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="page-title"><%= pageTitle || title || "Übersicht" %></h1>
+          <% if (pageSubtitle) { %>
+            <div class="page-subtitle"><%= pageSubtitle %></div>
+          <% } %>
+        </div>
+
+        <div class="topbar-right">
+          <% if (primaryAction) { %>
+            <a class="btn btn-primary" href="<%= primaryAction.href %>">
+              <%= primaryAction.label %>
+            </a>
+          <% } %>
+
+          <% if (secondaryAction) { %>
+            <a class="btn btn-secondary" href="<%= secondaryAction.href %>">
+              <%= secondaryAction.label %>
+            </a>
+          <% } %>
+        </div>
+      </header>
+
+      <section class="content">
+        <%- body %>
+      </section>
+
+      <footer class="hint">
+        <div class="hint-inner">
+          <div class="hint-title"><%= hintTitle || "Seitenhinweis" %></div>
+
+          <% if (hintLines && hintLines.length) { %>
+            <div class="hint-text">
+              <% hintLines.forEach(function(line){ %>
+                <div class="hint-line"><%= line %></div>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <div class="hint-text">
+              <div class="hint-line">Diese Seite unterstützt Sie bei der täglichen Arbeit. Folgen Sie den Schritten oben, um schnell und sicher zu arbeiten.</div>
+            </div>
+          <% } %>
+
+          <% if (hintMeta) { %>
+            <div class="hint-meta">
+              <% if (hintMeta.left) { %><span class="hint-meta-item"><%= hintMeta.left %></span><% } %>
+              <% if (hintMeta.right) { %><span class="hint-meta-item"><%= hintMeta.right %></span><% } %>
+            </div>
+          <% } %>
+        </div>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
