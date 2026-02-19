@@ -19,7 +19,7 @@ exports.renderHome = (req, res) => {
       "Starten Sie bei Bestellungen. Freigaben erzeugen Produktionsbedarf.",
       "Lager ist der Sicherheitsgurt: Bestände regelmäßig pflegen."
     ],
-    hintMeta: { left: "Tablet ready UI", right: "Status: Live" }
+    hintMeta: { left: "Workflow", right: "Status: Live" }
   }));
 };
 
@@ -43,23 +43,16 @@ exports.renderDashboard = (req, res) => {
 
 exports.renderOrders = (req, res) => {
   const orders = store.listOrders();
-
-  // Provide data for dropdowns in the form
-  const shops = store.SHOPS;
-  const coffees = store.COFFEES;
-
   res.render("orders", Object.assign(base("orders", "Bestellungen", "Filiale und B2B Bestellungen verwalten"), {
     orders,
-    shops,
-    coffees,
-    primaryAction: { label: "Neue Bestellung", href: "#new" },
-    secondaryAction: { label: "Zur Produktion", href: "/production" },
+    shops: store.SHOPS,
+    coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
     hintLines: [
       "EINGEGANGEN bedeutet: prüfen. FREIGEGEBEN bedeutet: zählt für Produktion.",
       "Weiter bewegt die Bestellung Schritt für Schritt durch den Workflow."
     ],
-    hintMeta: { left: "Regel: erst prüfen, dann freigeben", right: "Status-Workflow aktiv" }
+    hintMeta: { left: "Regel: erst prüfen, dann freigeben", right: "Status aktiv" }
   }));
 };
 
@@ -70,8 +63,6 @@ exports.renderProduction = (req, res) => {
   res.render("production", Object.assign(base("production", "Produktion", "Bedarf, Lagerabgleich und Batch Vorschläge"), {
     inventory: inv,
     roastDemand,
-    secondaryAction: { label: "Lager", href: "/inventory" },
-    tertiaryAction: { label: "Bestellungen", href: "/orders" },
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Bedarf basiert auf FREIGEGEBEN, IN_PRODUKTION und VERPACKT.",
@@ -83,13 +74,9 @@ exports.renderProduction = (req, res) => {
 
 exports.renderInventory = (req, res) => {
   const inv = store.getInventory();
-  const coffees = store.COFFEES;
-
   res.render("inventory", Object.assign(base("inventory", "Lager", "Bestände verwalten und Engpässe vermeiden"), {
     inventory: inv,
-    coffees,
-    primaryAction: { label: "Änderung übernehmen", href: "#apply" },
-    secondaryAction: { label: "Zur Produktion", href: "/production" },
+    coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Pflegen Sie Bestände nach Lieferung, Produktion und Auslieferung.",
@@ -104,7 +91,7 @@ exports.renderAnalytics = (req, res) => {
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Analysen zeigen nur das, was Entscheidungen erleichtert.",
-      "Charts kommen, sobald Daten stabil sind (DB)."
+      "Charts kommen, sobald Daten stabil sind."
     ],
     hintMeta: { left: "UI fertig", right: "Logik folgt" }
   }));
@@ -117,7 +104,7 @@ exports.renderSettings = (req, res) => {
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Hier werden später Sorten, Filialen und Mindestbestände wirklich gespeichert.",
-      "Nach DB-Migration wird das alles live editierbar."
+      "Nach DB-Migration wird das live editierbar."
     ],
     hintMeta: { left: "Admin Bereich", right: "Status: UI ready" }
   }));
