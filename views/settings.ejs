@@ -1,26 +1,207 @@
+<%
+  var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
+  var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
+%>
+
 <div class="card-grid">
   <div class="card">
-    <h2>Kaffeesorten</h2>
-    <p>Sorten, Packgrößen und interne Namen pflegen. Später auch: Röstprofile und Standard-Chargen.</p>
+    <h2>Einstellungen</h2>
+    <p>Stammdaten und Regeln. Wir bauen zuerst eine klare Oberfläche, danach verbinden wir die Logik ohne UI-Änderungen.</p>
   </div>
 
   <div class="card">
-    <h2>Rollen und Benutzer</h2>
-    <p>Admin, Rösterei, Filiale und B2B. Jede Rolle sieht nur, was sie braucht.</p>
+    <h2>Prinzip</h2>
+    <p>Alles was den Alltag beeinflusst, ist hier zentral gepflegt: Sorten, Filialen, Mindestbestände und Warnstufen.</p>
   </div>
 
   <div class="card">
-    <h2>Filialen</h2>
-    <p>Standorte verwalten: City, Berger Straße, Grüneburgweg. Später: Lieferzeiten und Default-Bedarf.</p>
+    <h2>Rollen</h2>
+    <p>Platzhalter: Admin, Rösterei, Filiale, B2B. Jede Rolle sieht nur das, was sie braucht.</p>
   </div>
 
   <div class="card">
-    <h2>Systemparameter</h2>
-    <p>Mindestbestände, Kapazitäten, Warnstufen. Alles später sauber konfigurierbar.</p>
+    <h2>Sicherheit</h2>
+    <p>Platzhalter: Login, Rechte, Audit-Log. Kommt nach UI-Finish.</p>
   </div>
 </div>
 
-<div style="margin-top: 14px;" class="card" >
-  <h2>Hinweis</h2>
-  <p>In Step 1 fokussieren wir uns auf die Bedienbarkeit und ein klares UI. Danach bauen wir die komplette Logik darauf.</p>
+<div style="margin-top:14px;" class="filterbar">
+  <div class="filter-left">
+    <input class="input" placeholder="Suche in Einstellungen" />
+    <select class="select">
+      <option>Bereich: Alle</option>
+      <option>Sorten</option>
+      <option>Filialen</option>
+      <option>Schwellenwerte</option>
+      <option>System</option>
+    </select>
+  </div>
+
+  <div class="filter-right">
+    <span class="small-note">UI bereit. Speichern aktivieren wir nachher.</span>
+    <button class="btn btn-secondary" type="button">Änderungen verwerfen</button>
+    <button class="btn btn-primary" type="button">Speichern</button>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Sorten</h2>
+  <p>Pflegen Sie die Kaffeesorten, die geröstet und ausgeliefert werden. Später: Röstprofile und Standard-Chargen.</p>
+
+  <div class="table-wrap">
+    <div class="table-head" style="grid-template-columns: 220px 160px 160px 1fr 280px;">
+      <div>Name</div>
+      <div>Sorten-ID</div>
+      <div>Standard Pack</div>
+      <div>Notiz</div>
+      <div>Aktionen</div>
+    </div>
+
+    <% if (!safeCoffees.length) { %>
+      <div class="table-row" style="grid-template-columns: 220px 160px 160px 1fr 280px;">
+        <div>Keine Sorten geladen</div>
+        <div class="mono">-</div>
+        <div>-</div>
+        <div>-</div>
+        <div class="row-actions">
+          <button class="btn btn-primary" type="button">Neue Sorte</button>
+          <button class="btn btn-secondary" type="button">Import</button>
+        </div>
+      </div>
+    <% } %>
+
+    <% for (var i = 0; i < safeCoffees.length; i++) { 
+        var c = safeCoffees[i];
+    %>
+      <div class="table-row" style="grid-template-columns: 220px 160px 160px 1fr 280px;">
+        <div><strong><%= c.name ? c.name : "Unbenannt" %></strong></div>
+        <div class="mono"><%= c.id ? c.id : "-" %></div>
+        <div><%= (c.packDefaultKg !== undefined && c.packDefaultKg !== null) ? (c.packDefaultKg + " kg") : "-" %></div>
+        <div class="small-note">Platzhalter: später Beschreibung / Röstprofil / Hinweise.</div>
+        <div class="row-actions">
+          <button class="btn btn-secondary" type="button">Bearbeiten</button>
+          <button class="btn btn-ghost" type="button">Archiv</button>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <div style="margin-top:12px;" class="filterbar">
+    <div class="filter-left">
+      <input class="input" placeholder="Neue Sorte Name" />
+      <input class="input" placeholder="Neue Sorte ID (z.B. bombora)" />
+      <select class="select">
+        <option>Standard Pack: 1 kg</option>
+        <option>0.25 kg</option>
+        <option>11 kg</option>
+      </select>
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" type="button">Zurücksetzen</button>
+      <button class="btn btn-primary" type="button">Sorte hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Filialen</h2>
+  <p>Standorte, die Bestellungen senden. Später: Lieferfenster und Default-Bedarf pro Sorte.</p>
+
+  <div class="table-wrap">
+    <div class="table-head" style="grid-template-columns: 220px 200px 1fr 280px;">
+      <div>Name</div>
+      <div>Filial-ID</div>
+      <div>Hinweis</div>
+      <div>Aktionen</div>
+    </div>
+
+    <% if (!safeShops.length) { %>
+      <div class="table-row" style="grid-template-columns: 220px 200px 1fr 280px;">
+        <div>Keine Filialen geladen</div>
+        <div class="mono">-</div>
+        <div>-</div>
+        <div class="row-actions">
+          <button class="btn btn-primary" type="button">Neue Filiale</button>
+          <button class="btn btn-secondary" type="button">Import</button>
+        </div>
+      </div>
+    <% } %>
+
+    <% for (var s = 0; s < safeShops.length; s++) {
+        var shop = safeShops[s];
+    %>
+      <div class="table-row" style="grid-template-columns: 220px 200px 1fr 280px;">
+        <div><strong><%= shop.name ? shop.name : "Unbenannt" %></strong></div>
+        <div class="mono"><%= shop.id ? shop.id : "-" %></div>
+        <div class="small-note">Platzhalter: später Ansprechpartner, Lieferfenster, Notizen.</div>
+        <div class="row-actions">
+          <button class="btn btn-secondary" type="button">Bearbeiten</button>
+          <button class="btn btn-ghost" type="button">Deaktivieren</button>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <div style="margin-top:12px;" class="filterbar">
+    <div class="filter-left">
+      <input class="input" placeholder="Neue Filiale Name" />
+      <input class="input" placeholder="Neue Filiale ID (z.B. city)" />
+      <input class="input" placeholder="Notiz (optional)" />
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" type="button">Zurücksetzen</button>
+      <button class="btn btn-primary" type="button">Filiale hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Schwellenwerte</h2>
+  <p>Warnstufen steuern, wann das System “OK”, “Niedrig” oder “Kritisch” zeigt. Später pro Sorte individuell.</p>
+
+  <div class="table-wrap">
+    <div class="table-head" style="grid-template-columns: 1fr 220px 220px 280px;">
+      <div>Bereich</div>
+      <div>Mindestbestand</div>
+      <div>Warnbereich</div>
+      <div>Aktionen</div>
+    </div>
+
+    <div class="table-row" style="grid-template-columns: 1fr 220px 220px 280px;">
+      <div><strong>Rohkaffee</strong></div>
+      <div>25 kg</div>
+      <div>0–24 kg</div>
+      <div class="row-actions">
+        <button class="btn btn-secondary" type="button">Bearbeiten</button>
+        <button class="btn btn-ghost" type="button">Standard</button>
+      </div>
+    </div>
+
+    <div class="table-row" style="grid-template-columns: 1fr 220px 220px 280px;">
+      <div><strong>Röstkaffee</strong></div>
+      <div>10 kg</div>
+      <div>0–9 kg</div>
+      <div class="row-actions">
+        <button class="btn btn-secondary" type="button">Bearbeiten</button>
+        <button class="btn btn-ghost" type="button">Standard</button>
+      </div>
+    </div>
+
+    <div class="table-row" style="grid-template-columns: 1fr 220px 220px 280px;">
+      <div><strong>Verpackung</strong></div>
+      <div>Platzhalter</div>
+      <div>Platzhalter</div>
+      <div class="row-actions">
+        <button class="btn btn-primary" type="button">Konfigurieren</button>
+        <button class="btn btn-ghost" type="button">Später</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Erklärung</h2>
+  <p>Einstellungen sind so aufgebaut, dass sie sich wie ein professionelles Admin-Panel anfühlen: klare Bereiche, Tabellen, schnelle Aktionen. Logik und Speichern aktivieren wir danach.</p>
 </div>
