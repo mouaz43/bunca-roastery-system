@@ -6,11 +6,12 @@ const expressLayouts = require("express-ejs-layouts");
 const pageRoutes = require("./routes/pageRoutes");
 const actionRoutes = require("./routes/actionRoutes");
 
-// API placeholders
-const orderRoutes = require("./routes/orderRoutes");
-const productionRoutes = require("./routes/productionRoutes");
-const inventoryRoutes = require("./routes/inventoryRoutes");
-const analyticsRoutes = require("./routes/analyticsRoutes");
+// Optional API placeholders (safe if they exist)
+let orderRoutes, productionRoutes, inventoryRoutes, analyticsRoutes;
+try { orderRoutes = require("./routes/orderRoutes"); } catch (e) {}
+try { productionRoutes = require("./routes/productionRoutes"); } catch (e) {}
+try { inventoryRoutes = require("./routes/inventoryRoutes"); } catch (e) {}
+try { analyticsRoutes = require("./routes/analyticsRoutes"); } catch (e) {}
 
 const app = express();
 
@@ -30,11 +31,11 @@ app.use("/", pageRoutes);
 // UI actions (POST)
 app.use("/actions", actionRoutes);
 
-// API placeholders
-app.use("/api/orders", orderRoutes);
-app.use("/api/production", productionRoutes);
-app.use("/api/inventory", inventoryRoutes);
-app.use("/api/analytics", analyticsRoutes);
+// API placeholders (only mount if present)
+if (orderRoutes) app.use("/api/orders", orderRoutes);
+if (productionRoutes) app.use("/api/production", productionRoutes);
+if (inventoryRoutes) app.use("/api/inventory", inventoryRoutes);
+if (analyticsRoutes) app.use("/api/analytics", analyticsRoutes);
 
 app.use((req, res) => {
   res.status(404).send("Seite nicht gefunden.");
