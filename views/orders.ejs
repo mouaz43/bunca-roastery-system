@@ -2,8 +2,7 @@
   var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
   var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
   var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
-
-  var urlError = (typeof error !== "undefined" && error) ? error : null;
+  var f = (typeof filters !== "undefined" && filters) ? filters : { search:"", status:"ALL", channel:"ALL", shop:"ALL", range:"30" };
 
   function statusInfo(status){
     var map = {
@@ -26,7 +25,6 @@
   function targetLabel(o){
     if (!o) return "-";
     if (o.channel === "B2B") return o.customerName ? o.customerName : "B2B Kunde";
-    if (o.shopName) return o.shopName;
     if (o.shopId) return o.shopId;
     return "Filiale";
   }
@@ -35,23 +33,68 @@
     if (!id) return "-";
     return (String(id).length >= 8) ? String(id).slice(0,8) : String(id);
   }
+
+  function todayISO(){
+    return new Date().toISOString().slice(0,10);
+  }
 %>
 
 <div class="card-grid">
   <div class="card">
     <h2>Bestellungen</h2>
-    <p>Prüfen, freigeben, weiterführen. Auslieferung bucht Röstkaffee aus dem Lager.</p>
+    <p>Filialen und B2B. Nutzen Sie Filter, um schnell die richtigen Vorgänge zu finden.</p>
   </div>
-
   <div class="card">
-    <h2>Status Timeline</h2>
-    <p>Entwurf  Eingegangen  Freigegeben  In Produktion  Verpackt  Ausgeliefert</p>
+    <h2>Workflow</h2>
+    <p>Eingegangen → Freigegeben → In Produktion → Verpackt → Ausgeliefert</p>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="filterbar">
+  <form method="GET" action="/orders" class="filter-left" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+    <input class="input" name="q" value="<%= f.search %>" placeholder="Suche (ID, Notiz, Sorte, Kunde)" />
+
+    <select class="select" name="status">
+      <option value="ALL" <%= (f.status==="ALL"?"selected":"") %>>Status: Alle</option>
+      <option value="EINGEGANGEN" <%= (f.status==="EINGEGANGEN"?"selected":"") %>>Eingegangen</option>
+      <option value="FREIGEGEBEN" <%= (f.status==="FREIGEGEBEN"?"selected":"") %>>Freigegeben</option>
+      <option value="IN_PRODUKTION" <%= (f.status==="IN_PRODUKTION"?"selected":"") %>>In Produktion</option>
+      <option value="VERPACKT" <%= (f.status==="VERPACKT"?"selected":"") %>>Verpackt</option>
+      <option value="AUSGELIEFERT" <%= (f.status==="AUSGELIEFERT"?"selected":"") %>>Ausgeliefert</option>
+    </select>
+
+    <select class="select" name="channel">
+      <option value="ALL" <%= (f.channel==="ALL"?"selected":"") %>>Kanal: Alle</option>
+      <option value="FILIALE" <%= (f.channel==="FILIALE"?"selected":"") %>>Filiale</option>
+      <option value="B2B" <%= (f.channel==="B2B"?"selected":"") %>>B2B</option>
+    </select>
+
+    <select class="select" name="shop">
+      <option value="ALL" <%= (f.shop==="ALL"?"selected":"") %>>Filiale: Alle</option>
+      <% for (var s=0; s<safeShops.length; s++) { %>
+        <option value="<%= safeShops[s].id %>" <%= (f.shop===safeShops[s].id?"selected":"") %>><%= safeShops[s].name %></option>
+      <% } %>
+    </select>
+
+    <select class="select" name="range">
+      <option value="7" <%= (f.range==="7"?"selected":"") %>>Zeitraum: 7 Tage</option>
+      <option value="30" <%= (f.range==="30"?"selected":"") %>>30 Tage</option>
+      <option value="90" <%= (f.range==="90"?"selected":"") %>>90 Tage</option>
+      <option value="365" <%= (f.range==="365"?"selected":"") %>>1 Jahr</option>
+    </select>
+
+    <button class="btn btn-secondary" type="submit">Filtern</button>
+    <a class="btn btn-ghost" href="/orders">Reset</a>
+  </form>
+
+  <div class="filter-right">
+    <a class="btn btn-primary" href="#new">Neue Bestellung</a>
   </div>
 </div>
 
 <div id="new" style="margin-top:14px;" class="card card-wide">
   <h2>Neue Bestellung</h2>
-  <p>Erstellt eine Bestellung im System. Mindestens eine Position ist erforderlich.</p>
+  <p>Mindestens eine Position. Lieferdatum bitte auswählen (automatisch korrektes Format).</p>
 
   <form method="POST" action="/actions/orders/create">
     <div class="filterbar" style="margin-top:12px;">
@@ -69,7 +112,7 @@
         </select>
 
         <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" />
-        <input class="input" name="deliveryDate" placeholder="Lieferdatum (YYYY-MM-DD)" />
+        <input class="input" type="date" name="deliveryDate" value="<%= todayISO() %>" />
       </div>
 
       <div class="filter-right">
@@ -119,7 +162,7 @@
     <div class="table-row">
       <div class="mono">-</div>
       <div>-</div>
-      <div>Keine Bestellungen vorhanden</div>
+      <div>Keine Bestellungen (Filter prüfen)</div>
       <div>-</div>
       <div><span class="badge"><span class="dot"></span>Info</span></div>
       <div class="row-actions">
@@ -128,7 +171,7 @@
     </div>
   <% } %>
 
-  <% for (var i = 0; i < safeOrders.length; i++) {
+  <% for (var i=0; i<safeOrders.length; i++) {
       var o = safeOrders[i];
       var s = statusInfo(o.status);
   %>
@@ -161,25 +204,20 @@
       <div>
         <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
           <div>
-            <div class="small-note">Details</div>
-            <div style="margin-top:6px;">
-              <strong>Notiz:</strong> <%= o.note ? o.note : "-" %>
-            </div>
-            <div style="margin-top:6px;">
-              <strong>Positionen:</strong>
-              <% if (o.items && o.items.length) { %>
-                <% for (var k=0; k<o.items.length; k++) { %>
-                  <div class="small-note"><%= o.items[k].coffeeName %> — <%= o.items[k].kg %> kg</div>
-                <% } %>
-              <% } else { %>
-                <div class="small-note">Keine Positionen</div>
+            <div class="small-note">Positionen</div>
+            <% if (o.items && o.items.length) { %>
+              <% for (var k=0; k<o.items.length; k++) { %>
+                <div class="small-note"><%= o.items[k].coffeeName %> — <%= o.items[k].kg %> kg</div>
               <% } %>
-            </div>
+            <% } else { %>
+              <div class="small-note">Keine Positionen</div>
+            <% } %>
           </div>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
-            <a class="btn btn-ghost" href="/production">In Produktion prüfen</a>
-            <a class="btn btn-ghost" href="/inventory">Lager prüfen</a>
+            <a class="btn btn-ghost" href="/production">Produktion</a>
+            <a class="btn btn-ghost" href="/inventory">Lager</a>
+            <a class="btn btn-ghost" href="/activity">Aktivität</a>
           </div>
         </div>
       </div>
