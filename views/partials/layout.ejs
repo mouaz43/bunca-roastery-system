@@ -4,9 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= pageTitle || "Bunca Rösterei" %></title>
-  <link rel="stylesheet" href="/app.css?v=<%= Date.now() %>" />
+
+  <!-- IMPORTANT: cache bust -->
+  <link rel="stylesheet" href="/app.css?v=<%= Date.now() %>">
+
+  <!-- If CSS loads, this little badge will look styled -->
 </head>
 <body>
+  <div style="padding:10px; font-family:system-ui;">
+    <span class="badge ok"><span class="dot"></span>CSS geladen</span>
+  </div>
+
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -33,7 +41,6 @@
             <strong><%= currentUser.name %></strong><br/>
             Rolle: <%= currentUser.role %>
           </div>
-
           <form method="POST" action="/logout" style="margin-top:10px;">
             <button class="btn btn-secondary" type="submit">Abmelden</button>
           </form>
