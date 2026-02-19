@@ -22,22 +22,36 @@ exports.createOrder = (req, res) => {
   const coffees = store.COFFEES;
 
   const items = [];
+
   if (item1CoffeeId && item1Kg > 0) {
-    const c = coffees.find(x => x.id === item1CoffeeId);
-    items.push({ coffeeId: item1CoffeeId, coffeeName: c ? c.name : item1CoffeeId, kg: item1Kg });
+    let coffeeName = item1CoffeeId;
+    for (let i = 0; i < coffees.length; i++) {
+      if (coffees[i].id === item1CoffeeId) {
+        coffeeName = coffees[i].name;
+        break;
+      }
+    }
+    items.push({ coffeeId: item1CoffeeId, coffeeName: coffeeName, kg: item1Kg });
   }
+
   if (item2CoffeeId && item2Kg > 0) {
-    const c = coffees.find(x => x.id === item2CoffeeId);
-    items.push({ coffeeId: item2CoffeeId, coffeeName: c ? c.name : item2CoffeeId, kg: item2Kg });
+    let coffeeName = item2CoffeeId;
+    for (let i = 0; i < coffees.length; i++) {
+      if (coffees[i].id === item2CoffeeId) {
+        coffeeName = coffees[i].name;
+        break;
+      }
+    }
+    items.push({ coffeeId: item2CoffeeId, coffeeName: coffeeName, kg: item2Kg });
   }
 
   store.createOrder({
-    channel,
-    shopId,
+    channel: channel,
+    shopId: channel === "FILIALE" ? shopId : null,
     customerName: channel === "B2B" ? customerName : null,
-    deliveryDate,
-    items,
-    note,
+    deliveryDate: deliveryDate,
+    items: items,
+    note: note,
     status: "EINGEGANGEN"
   });
 
@@ -53,8 +67,7 @@ exports.advanceOrder = (req, res) => {
   const idx = statuses.indexOf(order.status);
 
   if (idx >= 0 && idx < statuses.length - 1) {
-    const next = statuses[idx + 1];
-    store.setOrderStatus(id, next);
+    store.setOrderStatus(id, statuses[idx + 1]);
   }
 
   res.redirect("/orders");
@@ -72,6 +85,12 @@ exports.applyInventoryChange = (req, res) => {
   const deltaKg = parseFloatSafe(req.body.deltaKg);
   const note = req.body.note || "";
 
-  store.applyInventoryChange({ type, coffeeId, deltaKg, note });
+  store.applyInventoryChange({
+    type: type,
+    coffeeId: coffeeId,
+    deltaKg: deltaKg,
+    note: note
+  });
+
   res.redirect("/inventory");
 };
