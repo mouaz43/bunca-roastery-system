@@ -1,0 +1,132 @@
+<%
+  var safeActivity = (typeof activity !== "undefined" && activity) ? activity : [];
+
+  function badgeFor(action){
+    if (!action) return { cls:"badge", txt:"Info" };
+    if (action.indexOf("DELETE") >= 0) return { cls:"badge danger", txt:"Löschen" };
+    if (action.indexOf("STATUS") >= 0) return { cls:"badge warn", txt:"Status" };
+    if (action.indexOf("INVENTORY") >= 0) return { cls:"badge ok", txt:"Lager" };
+    if (action.indexOf("BATCH") >= 0) return { cls:"badge warn", txt:"Charge" };
+    if (action.indexOf("ORDER_CREATE") >= 0) return { cls:"badge ok", txt:"Neu" };
+    return { cls:"badge", txt:"Info" };
+  }
+
+  function shortId(id){
+    if (!id) return "-";
+    return (String(id).length >= 8) ? String(id).slice(0,8) : String(id);
+  }
+
+  function fmt(at){
+    if (!at) return "-";
+    return String(at).slice(0,19).replace("T"," ");
+  }
+
+  function metaText(m){
+    if (!m) return "-";
+    // short readable summary
+    if (m.orderId) return "Bestellung " + shortId(m.orderId);
+    if (m.batchId) return "Charge " + shortId(m.batchId);
+    if (m.coffeeId) return "Sorte " + m.coffeeId;
+    return "-";
+  }
+%>
+
+<div class="card-grid">
+  <div class="card">
+    <h2>Audit Log</h2>
+    <p>Hier sehen Sie alle Aktionen im System: Bestellungen, Chargen und Lagerbewegungen.</p>
+  </div>
+
+  <div class="card">
+    <h2>Wozu?</h2>
+    <p>Transparenz. Wenn Zahlen nicht stimmen, finden wir genau die Änderung und den Zeitpunkt.</p>
+  </div>
+
+  <div class="card">
+    <h2>Nächste Erweiterung</h2>
+    <p>Filter nach Bereich, Zeitraum und Export als CSV/PDF.</p>
+  </div>
+
+  <div class="card">
+    <h2>Hinweis</h2>
+    <p>Aktuell: In-Memory. Nach DB-Migration bleibt dieses Protokoll erhalten, aber dann dauerhaft.</p>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="filterbar">
+  <div class="filter-left">
+    <input class="input" placeholder="Suche (ID, Sorte, Aktion)" />
+    <select class="select">
+      <option>Bereich: Alle</option>
+      <option>Bestellungen</option>
+      <option>Chargen</option>
+      <option>Lager</option>
+    </select>
+    <select class="select">
+      <option>Zeitraum: Aktuell</option>
+      <option>Heute</option>
+      <option>7 Tage</option>
+      <option>30 Tage</option>
+    </select>
+  </div>
+
+  <div class="filter-right">
+    <span class="small-note">Filter UI jetzt, Logik danach.</span>
+    <button class="btn btn-secondary" type="button">Export</button>
+    <button class="btn btn-primary" type="button">Bericht</button>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="table-wrap">
+  <div class="table-head" style="grid-template-columns: 170px 220px 1fr 1fr 280px;">
+    <div>Zeit</div>
+    <div>Typ</div>
+    <div>Referenz</div>
+    <div>Details</div>
+    <div>Status</div>
+  </div>
+
+  <% if (!safeActivity.length) { %>
+    <div class="table-row" style="grid-template-columns: 170px 220px 1fr 1fr 280px;">
+      <div>-</div>
+      <div>-</div>
+      <div>Keine Aktivität</div>
+      <div>-</div>
+      <div><span class="badge"><span class="dot"></span>Info</span></div>
+    </div>
+  <% } %>
+
+  <% for (var i=0; i<safeActivity.length; i++) {
+      var a = safeActivity[i];
+      var b = badgeFor(a.action || "");
+      var meta = a.meta || {};
+  %>
+    <div class="table-row" style="grid-template-columns: 170px 220px 1fr 1fr 280px;">
+      <div class="mono"><%= fmt(a.at) %></div>
+      <div><strong><%= a.action %></strong></div>
+      <div class="small-note"><%= metaText(meta) %></div>
+      <div class="small-note">
+        <% if (meta.from && meta.to) { %>
+          <div>von <strong><%= meta.from %></strong> zu <strong><%= meta.to %></strong></div>
+        <% } %>
+        <% if (meta.deltaKg !== undefined) { %>
+          <div>Änderung: <strong><%= meta.deltaKg %> kg</strong></div>
+        <% } %>
+        <% if (meta.kg !== undefined) { %>
+          <div>Menge: <strong><%= meta.kg %> kg</strong></div>
+        <% } %>
+        <% if (meta.note) { %>
+          <div>Notiz: <%= meta.note %></div>
+        <% } %>
+      </div>
+      <div>
+        <span class="<%= b.cls %>"><span class="dot"></span><%= b.txt %></span>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Erklärung</h2>
+  <p>Dieses Protokoll ist der Schlüssel zu einer stabilen Rösterei-Operation. Ohne Audit Log wird jede Abweichung zur Detektivarbeit. Mit Audit Log ist es ein Klick.</p>
+</div>
