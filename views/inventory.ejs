@@ -2,6 +2,39 @@
   var safeInventory = (typeof inventory !== "undefined" && inventory) ? inventory : null;
   var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
 
+  function val(obj, key){
+    if (!obj) return 0;
+    var v = obj[key];
+    if (v === undefined || v === null) return 0;
+    return v;
+  }
+
+  function green(coffeeId){
+    if (!safeInventory || !safeInventory.greenBeansKg) return 0;
+    return val(safeInventory.greenBeansKg, coffeeId);
+  }
+
+  function roasted(coffeeId){
+    if (!safeInventory || !safeInventory.roastedKg) return 0;
+    return val(safeInventory.roastedKg, coffeeId);
+  }
+
+  // thresholds (later configurable)
+  function minGreen(){ return 25; }
+  function minRoasted(){ return 10; }
+
+  function badgeFor(value, min){
+    if (value <= 0) return "badge danger";
+    if (value < min) return "badge warn";
+    return "badge ok";
+  }
+
+  function txtFor(value, min){
+    if (value <= 0) return "Kritisch";
+    if (value < min) return "Niedrig";
+    return "OK";
+  }
+
   function safeUpdatedAt(){
     if (!safeInventory || !safeInventory.updatedAt) return "-";
     return String(safeInventory.updatedAt).slice(0,19).replace("T"," ");
@@ -11,7 +44,12 @@
 <div class="card-grid">
   <div class="card">
     <h2>Lager Übersicht</h2>
-    <p>Bestände pflegen, Engpässe verhindern. Änderungen werden über ein Formular übernommen.</p>
+    <p>Rohkaffee und Röstkaffee pro Sorte, inklusive Warnstufen. Änderungen unten übernehmen.</p>
+  </div>
+
+  <div class="card">
+    <h2>Warnstufen</h2>
+    <p>Rohkaffee unter 25kg gilt als niedrig. Röstkaffee unter 10kg gilt als niedrig. Später pro Sorte.</p>
   </div>
 
   <div class="card">
@@ -21,22 +59,65 @@
 
   <div class="card">
     <h2>Schnellaktionen</h2>
-    <p>Planung hängt am Lager. Erst Lager prüfen, dann Produktion planen.</p>
+    <p>Engpass? Erst Lager, dann Produktion. Danach Bestellungen prüfen.</p>
     <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
       <a class="btn btn-secondary" href="/production">Zur Produktion</a>
       <a class="btn btn-ghost" href="/orders">Zu Bestellungen</a>
     </div>
   </div>
+</div>
 
-  <div class="card">
-    <h2>Hinweis</h2>
-    <p>In diesem Schritt speichern wir Änderungen im Dummy Store. Danach kommt Datenbank und Protokoll.</p>
+<div style="margin-top:14px;" class="table-wrap">
+  <div class="table-head">
+    <div>Sorte</div>
+    <div>Roh kg</div>
+    <div>Röst kg</div>
+    <div>Roh Status</div>
+    <div>Röst Status</div>
+    <div>Aktionen</div>
   </div>
+
+  <% if (!safeCoffees.length) { %>
+    <div class="table-row">
+      <div>Keine Sorten geladen</div>
+      <div>-</div>
+      <div>-</div>
+      <div><span class="badge"><span class="dot"></span>Info</span></div>
+      <div><span class="badge"><span class="dot"></span>Info</span></div>
+      <div class="row-actions">
+        <a class="btn btn-primary" href="/settings">Zu Einstellungen</a>
+      </div>
+    </div>
+  <% } %>
+
+  <% for (var i=0; i<safeCoffees.length; i++) {
+      var c = safeCoffees[i];
+      var g = green(c.id);
+      var r = roasted(c.id);
+
+      var bg = badgeFor(g, minGreen());
+      var br = badgeFor(r, minRoasted());
+
+      var tg = txtFor(g, minGreen());
+      var tr = txtFor(r, minRoasted());
+  %>
+    <div class="table-row">
+      <div><strong><%= c.name %></strong></div>
+      <div><%= g %></div>
+      <div><%= r %></div>
+      <div><span class="<%= bg %>"><span class="dot"></span><%= tg %></span></div>
+      <div><span class="<%= br %>"><span class="dot"></span><%= tr %></span></div>
+      <div class="row-actions">
+        <a class="btn btn-ghost" href="#apply">Anpassen</a>
+        <a class="btn btn-secondary" href="/production">Planen</a>
+      </div>
+    </div>
+  <% } %>
 </div>
 
 <div id="apply" style="margin-top:14px;" class="card card-wide">
   <h2>Bestand ändern</h2>
-  <p>Wählen Sie Typ, Sorte und Änderung in kg (z.B. +10 oder -5). Danach wird der Bestand aktualisiert.</p>
+  <p>Änderung in kg eingeben (z.B. +10 oder -5). Danach wird der Bestand sofort aktualisiert.</p>
 
   <form method="POST" action="/actions/inventory/apply">
     <div class="filterbar" style="margin-top:12px;">
@@ -65,11 +146,6 @@
   </form>
 
   <div style="margin-top:10px;" class="small-note">
-    Später: Jede Änderung wird automatisch mit Zeit, Benutzer und Referenz gespeichert.
+    Nächster Schritt: Protokoll und automatische Lagerbewegungen aus Produktion und Auslieferung.
   </div>
-</div>
-
-<div style="margin-top:14px;" class="card card-wide">
-  <h2>Bestandsübersicht</h2>
-  <p>Diese Tabelle bleibt vorerst UI-only. Im nächsten Schritt zeigen wir echte Werte pro Sorte an.</p>
 </div>
