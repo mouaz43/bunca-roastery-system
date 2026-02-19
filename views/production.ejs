@@ -1,60 +1,21 @@
 <div class="card-grid">
   <div class="card">
-    <h2>Röstbedarf</h2>
-    <p>Summe aller Mengen aus freigegebenen Bestellungen, die noch nicht ausgeliefert sind.</p>
+    <h2>Produktionsplanung</h2>
+    <p>Hier entsteht die Übersicht: Bedarf pro Sorte und daraus generierte Chargen.</p>
   </div>
 
   <div class="card">
-    <h2>Planung</h2>
-    <p>Später erzeugen wir daraus Chargenvorschläge nach optimaler Batchgröße.</p>
+    <h2>Kapazität</h2>
+    <p>Platzhalter: Tages-/Wochenkapazität, Auslastung, Warnungen bei Überlastung.</p>
   </div>
 </div>
 
-<div style="margin-top: 14px;" class="card">
+<div style="margin-top:14px;" class="card">
   <h2>Bedarf pro Sorte</h2>
+  <p>Platzhalter: Tabelle oder Liste. Später aus freigegebenen Bestellungen berechnet.</p>
+</div>
 
-  <% if (!roastDemand || !roastDemand.length) { %>
-    <p>Aktuell gibt es keinen freigegebenen Bedarf.</p>
-  <% } else { %>
-
-    <div class="table">
-      <div class="t-head">
-        <div>Sorte</div>
-        <div>Gesamt kg</div>
-        <div>Rohkaffee kg</div>
-        <div>Röstkaffee kg</div>
-        <div>Hinweis</div>
-      </div>
-
-      <% for (var i = 0; i < roastDemand.length; i++) { 
-        var r = roastDemand[i];
-
-        var green = 0;
-        var roasted = 0;
-
-        if (inventory && inventory.greenBeansKg && inventory.greenBeansKg[r.coffeeId] !== undefined && inventory.greenBeansKg[r.coffeeId] !== null) {
-          green = inventory.greenBeansKg[r.coffeeId];
-        }
-
-        if (inventory && inventory.roastedKg && inventory.roastedKg[r.coffeeId] !== undefined && inventory.roastedKg[r.coffeeId] !== null) {
-          roasted = inventory.roastedKg[r.coffeeId];
-        }
-
-        var needFromGreen = r.kg - roasted;
-        if (needFromGreen < 0) needFromGreen = 0;
-
-        var risk = (green < needFromGreen) ? "Rohkaffee knapp" : "OK";
-        var badgeClass = (risk === "OK") ? "badge ok" : "badge warn";
-      %>
-        <div class="t-row">
-          <div><%= r.coffeeName %></div>
-          <div><strong><%= r.kg %></strong></div>
-          <div><%= green %></div>
-          <div><%= roasted %></div>
-          <div><span class="<%= badgeClass %>"><%= risk %></span></div>
-        </div>
-      <% } %>
-    </div>
-
-  <% } %>
+<div style="margin-top:14px;" class="card">
+  <h2>Chargen</h2>
+  <p>Platzhalter: “Zu rösten”, “Geröstet”, “Abkühlen”, “Verpacken”, “Auslieferung”.</p>
 </div>
