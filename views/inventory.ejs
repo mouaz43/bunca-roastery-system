@@ -2,36 +2,6 @@
   var safeInventory = (typeof inventory !== "undefined" && inventory) ? inventory : null;
   var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
 
-  function green(coffeeId){
-    if (!safeInventory || !safeInventory.greenBeansKg) return 0;
-    var v = safeInventory.greenBeansKg[coffeeId];
-    if (v === undefined || v === null) return 0;
-    return v;
-  }
-
-  function roasted(coffeeId){
-    if (!safeInventory || !safeInventory.roastedKg) return 0;
-    var v = safeInventory.roastedKg[coffeeId];
-    if (v === undefined || v === null) return 0;
-    return v;
-  }
-
-  // UI-only thresholds (placeholders). Later moved to settings.
-  function minGreen(){ return 25; }
-  function minRoasted(){ return 10; }
-
-  function badgeFor(value, min){
-    if (value <= 0) return "badge danger";
-    if (value < min) return "badge warn";
-    return "badge ok";
-  }
-
-  function txtFor(value, min){
-    if (value <= 0) return "Kritisch";
-    if (value < min) return "Niedrig";
-    return "OK";
-  }
-
   function safeUpdatedAt(){
     if (!safeInventory || !safeInventory.updatedAt) return "-";
     return String(safeInventory.updatedAt).slice(0,19).replace("T"," ");
@@ -41,12 +11,7 @@
 <div class="card-grid">
   <div class="card">
     <h2>Lager Übersicht</h2>
-    <p>Ein Blick reicht: Rohkaffee, Röstkaffee und Warnstufen pro Sorte. Optimiert für Tablets.</p>
-  </div>
-
-  <div class="card">
-    <h2>Warnlogik</h2>
-    <p>Platzhalter: Mindestbestände (Roh 25kg, Röst 10kg). Später frei konfigurierbar in Einstellungen.</p>
+    <p>Bestände pflegen, Engpässe verhindern. Änderungen werden über ein Formular übernommen.</p>
   </div>
 
   <div class="card">
@@ -56,120 +21,55 @@
 
   <div class="card">
     <h2>Schnellaktionen</h2>
-    <p>Arbeitsfluss: Lager prüfen, dann Produktion planen, danach Auslieferung.</p>
+    <p>Planung hängt am Lager. Erst Lager prüfen, dann Produktion planen.</p>
     <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
       <a class="btn btn-secondary" href="/production">Zur Produktion</a>
       <a class="btn btn-ghost" href="/orders">Zu Bestellungen</a>
-      <a class="btn btn-primary" href="/settings">Schwellenwerte</a>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Hinweis</h2>
+    <p>In diesem Schritt speichern wir Änderungen im Dummy Store. Danach kommt Datenbank und Protokoll.</p>
   </div>
 </div>
 
-<div style="margin-top:14px;" class="filterbar">
-  <div class="filter-left">
-    <input class="input" placeholder="Suche Sorte" />
-    <select class="select">
-      <option>Ansicht: Alle</option>
-      <option>Nur kritisch</option>
-      <option>Nur niedrig</option>
-      <option>Nur OK</option>
-    </select>
-    <select class="select">
-      <option>Bereich: Kaffee</option>
-      <option>Bereich: Verpackung</option>
-    </select>
-  </div>
-
-  <div class="filter-right">
-    <span class="small-note">Filter UI ist aktiv, Logik folgt nach UI-Finish.</span>
-    <button class="btn btn-secondary" type="button">Inventur Modus</button>
-    <button class="btn btn-primary" type="button">Änderung speichern</button>
-  </div>
-</div>
-
-<div class="table-wrap">
-  <div class="table-head">
-    <div>Sorte</div>
-    <div>Roh kg</div>
-    <div>Röst kg</div>
-    <div>Roh Status</div>
-    <div>Röst Status</div>
-    <div>Aktionen</div>
-  </div>
-
-  <% if (!safeCoffees.length) { %>
-    <div class="table-row">
-      <div>Keine Sorten geladen</div>
-      <div>-</div>
-      <div>-</div>
-      <div><span class="badge"><span class="dot"></span>Platzhalter</span></div>
-      <div><span class="badge"><span class="dot"></span>Platzhalter</span></div>
-      <div class="row-actions">
-        <a class="btn btn-primary" href="/settings">Zu Einstellungen</a>
-        <button class="btn btn-secondary" type="button">Neu laden</button>
-      </div>
-    </div>
-  <% } %>
-
-  <% for (var i = 0; i < safeCoffees.length; i++) {
-      var c = safeCoffees[i];
-      var g = green(c.id);
-      var r = roasted(c.id);
-
-      var bg = badgeFor(g, minGreen());
-      var br = badgeFor(r, minRoasted());
-
-      var tg = txtFor(g, minGreen());
-      var tr = txtFor(r, minRoasted());
-  %>
-    <div class="table-row">
-      <div><strong><%= c.name %></strong></div>
-      <div><%= g %></div>
-      <div><%= r %></div>
-      <div><span class="<%= bg %>"><span class="dot"></span><%= tg %></span></div>
-      <div><span class="<%= br %>"><span class="dot"></span><%= tr %></span></div>
-      <div class="row-actions">
-        <button class="btn btn-primary" type="button">Anpassen</button>
-        <button class="btn btn-secondary" type="button">Reservieren</button>
-        <button class="btn btn-ghost" type="button">Historie</button>
-      </div>
-    </div>
-  <% } %>
-</div>
-
-<div style="margin-top:14px;" class="card card-wide">
+<div id="apply" style="margin-top:14px;" class="card card-wide">
   <h2>Bestand ändern</h2>
-  <p>Diese Eingabe ist UI-Ready. Im nächsten Schritt verknüpfen wir sie mit der Logik und einem Protokoll.</p>
+  <p>Wählen Sie Typ, Sorte und Änderung in kg (z.B. +10 oder -5). Danach wird der Bestand aktualisiert.</p>
 
-  <div style="margin-top:12px;" class="filterbar">
-    <div class="filter-left">
-      <select class="select">
-        <option>Typ: Rohkaffee</option>
-        <option>Typ: Röstkaffee</option>
-      </select>
+  <form method="POST" action="/actions/inventory/apply">
+    <div class="filterbar" style="margin-top:12px;">
+      <div class="filter-left">
+        <select class="select" name="type">
+          <option value="GREEN">Typ: Rohkaffee</option>
+          <option value="ROASTED">Typ: Röstkaffee</option>
+        </select>
 
-      <select class="select">
-        <option>Sorte wählen</option>
-        <% for (var i = 0; i < safeCoffees.length; i++) { %>
-          <option><%= safeCoffees[i].name %></option>
-        <% } %>
-      </select>
+        <select class="select" name="coffeeId">
+          <option value="">Sorte wählen</option>
+          <% for (var i=0; i<safeCoffees.length; i++) { %>
+            <option value="<%= safeCoffees[i].id %>"><%= safeCoffees[i].name %></option>
+          <% } %>
+        </select>
 
-      <input class="input" placeholder="Menge in kg (z.B. +10 oder -5)" />
+        <input class="input" name="deltaKg" placeholder="Menge in kg (z.B. +10 oder -5)" />
+        <input class="input" name="note" placeholder="Grund (optional)" />
+      </div>
+
+      <div class="filter-right">
+        <button class="btn btn-secondary" type="reset">Zurücksetzen</button>
+        <button class="btn btn-primary" type="submit">Übernehmen</button>
+      </div>
     </div>
-
-    <div class="filter-right">
-      <button class="btn btn-secondary" type="button">Zurücksetzen</button>
-      <button class="btn btn-primary" type="button">Übernehmen</button>
-    </div>
-  </div>
+  </form>
 
   <div style="margin-top:10px;" class="small-note">
-    Hinweis: Später speichern wir jede Änderung mit Zeit, Benutzer, Grund und Referenz (Bestellung/Charge).
+    Später: Jede Änderung wird automatisch mit Zeit, Benutzer und Referenz gespeichert.
   </div>
 </div>
 
 <div style="margin-top:14px;" class="card card-wide">
-  <h2>Prozess Erklärung</h2>
-  <p>Diese Seite bleibt absichtlich ruhig. Die wichtigsten Infos sind im Table-Block, Änderungen sind als eigener Bereich unten. So ist die Bedienung auf Tablets schnell und fehlerarm.</p>
+  <h2>Bestandsübersicht</h2>
+  <p>Diese Tabelle bleibt vorerst UI-only. Im nächsten Schritt zeigen wir echte Werte pro Sorte an.</p>
 </div>
