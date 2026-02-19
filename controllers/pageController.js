@@ -27,10 +27,12 @@ exports.renderDashboard = (req, res) => {
   const orders = store.listOrders();
   const inv = store.getInventory();
   const demand = store.computeRoastDemand();
+  const batches = store.listBatches();
 
   res.render("dashboard", Object.assign(base("dashboard", "Dashboard", "Übersicht und Schnellaktionen"), {
     ordersCount: orders.length,
     demandCount: demand.length,
+    batchCount: batches.length,
     inventoryUpdatedAt: inv.updatedAt,
     hintTitle: "Seitenhinweis",
     hintLines: [
@@ -59,14 +61,16 @@ exports.renderOrders = (req, res) => {
 exports.renderProduction = (req, res) => {
   const inv = store.getInventory();
   const roastDemand = store.computeRoastDemand();
+  const batches = store.listBatches();
 
-  res.render("production", Object.assign(base("production", "Produktion", "Bedarf, Lagerabgleich und Batch Vorschläge"), {
+  res.render("production", Object.assign(base("production", "Produktion", "Bedarf, Lagerabgleich und Chargen"), {
     inventory: inv,
     roastDemand,
+    batches,
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Bedarf basiert auf FREIGEGEBEN, IN_PRODUKTION und VERPACKT.",
-      "Röstkaffee-Puffer reduziert den Röstbedarf."
+      "Wenn eine Charge “Geröstet” wird, bewegen sich Bestände automatisch."
     ],
     hintMeta: { left: "Plan zuerst, dann rösten", right: "Letztes Lagerupdate: " + String(inv.updatedAt).slice(0, 10) }
   }));
