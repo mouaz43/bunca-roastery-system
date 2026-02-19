@@ -7,109 +7,158 @@
 
   <style>
     :root{
-      --bg:#0b0f14;
-      --panel:rgba(255,255,255,.06);
-      --panel2:rgba(255,255,255,.08);
-      --border:rgba(255,255,255,.10);
-      --text:rgba(255,255,255,.92);
-      --muted:rgba(255,255,255,.65);
-      --accent:#c8a36a;
-      --accent2:#8b5a2b;
-      --ok:#2ad67f;
-      --radius:16px;
-      --radius2:22px;
-      --shadow:0 12px 40px rgba(0,0,0,.35);
+      /* Bunca palette */
+      --cream:#f7f1e6;
+      --cream2:#efe3d2;
+      --coffee:#3a2518;
+      --coffee2:#5a3a24;
+      --gold:#c8a36a;
+      --border:rgba(58,37,24,.14);
+      --text:#2a1a12;
+      --muted:rgba(42,26,18,.70);
+
+      --radius:18px;
+      --radius2:24px;
+      --shadow:0 14px 45px rgba(30,18,12,.12);
+      --shadow2:0 10px 28px rgba(30,18,12,.10);
     }
+
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:
-        radial-gradient(1200px 700px at 20% 0%, rgba(200,163,106,.18), transparent 60%),
-        radial-gradient(900px 700px at 90% 20%, rgba(139,90,43,.18), transparent 55%),
-        var(--bg);
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       color:var(--text);
+      background:
+        radial-gradient(1100px 700px at 12% 8%, rgba(200,163,106,.22), transparent 55%),
+        radial-gradient(900px 650px at 92% 10%, rgba(90,58,36,.12), transparent 55%),
+        linear-gradient(180deg, var(--cream), var(--cream2));
     }
-    a{color:var(--accent);text-decoration:none}
+
+    a{color:var(--coffee2);text-decoration:none}
     a:hover{text-decoration:underline}
+
     .small-note{color:var(--muted);font-size:13px;line-height:1.35}
 
-    .app-shell{display:grid;grid-template-columns:290px 1fr;min-height:100vh}
+    .app-shell{
+      display:grid;
+      grid-template-columns: 300px 1fr;
+      min-height:100vh;
+    }
 
+    /* Sidebar */
     .sidebar{
       padding:18px;
       border-right:1px solid var(--border);
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      backdrop-filter:blur(10px);
+      background:rgba(255,255,255,.35);
+      backdrop-filter: blur(10px);
     }
+
     .sidebar-header{
-      padding:14px;
+      padding:14px 14px 12px;
       border:1px solid var(--border);
       border-radius:var(--radius2);
-      box-shadow:var(--shadow);
-      background:rgba(0,0,0,.15);
+      background: linear-gradient(180deg, rgba(255,255,255,.70), rgba(255,255,255,.35));
+      box-shadow: var(--shadow2);
     }
-    .brand-title{font-weight:800}
-    .brand-sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .brand-title{font-weight:900;letter-spacing:.2px}
+    .brand-sub{margin-top:4px;font-size:12px;color:var(--muted)}
 
-    .nav{margin-top:14px;display:grid;gap:8px}
+    .nav{margin-top:14px;display:grid;gap:10px}
+
     .nav-item{
       display:flex;
       align-items:center;
-      padding:12px;
-      border-radius:14px;
-      border:1px solid transparent;
-      color:var(--text);
-      background:rgba(255,255,255,.04);
+      justify-content:space-between;
+      padding:12px 12px;
+      border-radius:16px;
+      border:1px solid rgba(58,37,24,.10);
+      background: rgba(255,255,255,.55);
+      color: var(--coffee);
+      box-shadow: 0 6px 16px rgba(30,18,12,.06);
+      transition: transform .08s ease, background .12s ease, border-color .12s ease;
     }
     .nav-item:hover{
-      background:rgba(255,255,255,.07);
-      border-color:rgba(255,255,255,.10);
       text-decoration:none;
+      background: rgba(255,255,255,.72);
+      border-color: rgba(58,37,24,.16);
+      transform: translateY(-1px);
     }
     .nav-item.active{
-      background:linear-gradient(90deg, rgba(200,163,106,.22), rgba(139,90,43,.18));
-      border-color:rgba(200,163,106,.28);
+      background: linear-gradient(90deg, rgba(200,163,106,.28), rgba(90,58,36,.10));
+      border-color: rgba(200,163,106,.35);
     }
 
-    .sidebar-footer{
-      margin-top:16px;
-      padding:14px;
-      border:1px solid var(--border);
-      border-radius:var(--radius2);
-      background:rgba(255,255,255,.04);
-    }
-
+    /* Main */
     .main{padding:18px;display:flex;flex-direction:column;gap:14px}
+
     .topbar{
       display:flex;
+      align-items:center;
       justify-content:space-between;
       gap:14px;
       padding:16px 18px;
       border:1px solid var(--border);
       border-radius:var(--radius2);
-      background:rgba(255,255,255,.04);
-      box-shadow:var(--shadow);
+      background: rgba(255,255,255,.55);
+      box-shadow: var(--shadow);
     }
-    .page-title{margin:0;font-size:22px;font-weight:800}
+
+    .page-title{margin:0;font-size:22px;font-weight:900}
     .page-subtitle{margin-top:6px;color:var(--muted);font-size:13px}
+
     .content{display:flex;flex-direction:column;gap:14px}
 
+    /* Cards */
+    .card{
+      border:1px solid var(--border);
+      border-radius:var(--radius2);
+      background: rgba(255,255,255,.60);
+      box-shadow: var(--shadow2);
+      padding:16px;
+    }
+
+    .card-title{margin:0 0 6px 0;font-size:16px;font-weight:900;color:var(--coffee)}
+    .card-sub{margin:0;color:var(--muted);font-size:13px}
+
+    /* Buttons */
     .btn{
       height:40px;
       padding:0 14px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.06);
-      color:var(--text);
+      border-radius:16px;
+      border:1px solid rgba(58,37,24,.14);
+      background: rgba(255,255,255,.65);
+      color:var(--coffee);
+      font-weight:900;
       cursor:pointer;
-      font-weight:700;
-      width:100%;
+      transition: transform .08s ease, background .12s ease, border-color .12s ease;
     }
-    .btn:hover{background:rgba(255,255,255,.09)}
+    .btn:hover{
+      background: rgba(255,255,255,.78);
+      border-color: rgba(58,37,24,.20);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary{
+      border-color: rgba(200,163,106,.55);
+      background: linear-gradient(180deg, rgba(200,163,106,.55), rgba(200,163,106,.28));
+    }
+
+    .btn-secondary{width:100%}
+
+    /* Footer hint (professional helper) */
+    .hint{
+      margin-top:auto;
+      border:1px dashed rgba(58,37,24,.22);
+      border-radius: var(--radius2);
+      padding:14px 16px;
+      background: rgba(255,255,255,.45);
+    }
+    .hint-title{font-weight:900;color:var(--coffee);margin-bottom:6px}
+    .hint-meta{display:flex;justify-content:space-between;gap:10px;margin-top:10px}
 
     @media (max-width:980px){
       .app-shell{grid-template-columns:1fr}
+      .sidebar{border-right:none;border-bottom:1px solid var(--border)}
     }
   </style>
 </head>
@@ -118,10 +167,8 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand">
-          <div class="brand-title">Bunca Rösterei</div>
-          <div class="brand-sub">Produktions- und Bestellsystem</div>
-        </div>
+        <div class="brand-title">Bunca Rösterei</div>
+        <div class="brand-sub">Produktions- und Bestellsystem</div>
       </div>
 
       <nav class="nav">
@@ -134,17 +181,17 @@
         <a class="nav-item <%= activeNav==='activity'?'active':'' %>" href="/activity">Aktivität</a>
       </nav>
 
-      <div class="sidebar-footer">
+      <div class="card" style="margin-top:14px;">
         <% if (currentUser) { %>
-          <div class="small-note">
-            Eingeloggt als<br/>
-            <strong><%= currentUser.name %></strong><br/>
-            Rolle: <%= currentUser.role %>
-          </div>
+          <div class="small-note">Eingeloggt als</div>
+          <div style="font-weight:900;margin-top:2px;"><%= currentUser.name %></div>
+          <div class="small-note" style="margin-top:4px;">Rolle: <%= currentUser.role %></div>
 
-          <form method="POST" action="/logout" style="margin-top:10px;">
-            <button class="btn" type="submit">Abmelden</button>
+          <form method="POST" action="/logout" style="margin-top:12px;">
+            <button class="btn btn-secondary" type="submit">Abmelden</button>
           </form>
+        <% } else { %>
+          <div class="small-note">Nicht eingeloggt</div>
         <% } %>
       </div>
     </aside>
@@ -155,11 +202,32 @@
           <h1 class="page-title"><%= pageTitle || "" %></h1>
           <% if (pageSubtitle) { %><div class="page-subtitle"><%= pageSubtitle %></div><% } %>
         </div>
+
+        <% if (primaryAction) { %>
+          <a class="btn btn-primary" href="<%= primaryAction.href %>"><%= primaryAction.label %></a>
+        <% } %>
       </header>
 
       <section class="content">
         <%- body %>
       </section>
+
+      <% if (hintTitle || hintLines) { %>
+        <footer class="hint">
+          <div class="hint-title"><%= hintTitle || "Hinweis" %></div>
+          <% if (hintLines && hintLines.length) { %>
+            <% for (var i=0; i<hintLines.length; i++) { %>
+              <div class="small-note"><%= hintLines[i] %></div>
+            <% } %>
+          <% } %>
+          <% if (hintMeta) { %>
+            <div class="hint-meta">
+              <span class="small-note"><%= hintMeta.left || "" %></span>
+              <span class="small-note"><%= hintMeta.right || "" %></span>
+            </div>
+          <% } %>
+        </footer>
+      <% } %>
     </main>
   </div>
 </body>
