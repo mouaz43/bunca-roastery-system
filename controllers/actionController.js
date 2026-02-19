@@ -1,57 +1,45 @@
 // controllers/actionController.js
 const store = require("../data/store");
 
-function parseFloatSafe(v) {
-  const n = Number.parseFloat(String(v));
+function num(v) {
+  const n = Number.parseFloat(String(v).replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
 
+function cleanText(v) {
+  return String(v || "").trim();
+}
+
 exports.createOrder = (req, res) => {
-  const channel = req.body.channel;
-  const shopId = req.body.shopId || null;
-  const customerName = req.body.customerName || null;
-  const deliveryDate = req.body.deliveryDate;
-  const note = req.body.note || "";
+  const channel = cleanText(req.body.channel) || "FILIALE";
+  const shopId = cleanText(req.body.shopId) || null;
+  const customerName = cleanText(req.body.customerName) || null;
+  const deliveryDate = cleanText(req.body.deliveryDate) || new Date().toISOString().slice(0, 10);
+  const note = cleanText(req.body.note);
 
-  const item1CoffeeId = req.body.item1CoffeeId;
-  const item1Kg = parseFloatSafe(req.body.item1Kg);
-
-  const item2CoffeeId = req.body.item2CoffeeId;
-  const item2Kg = parseFloatSafe(req.body.item2Kg);
-
-  const coffees = store.COFFEES;
-
+  // Items: allow up to 8 lines from UI (we will expand later)
   const items = [];
+  for (let i = 1; i <= 8; i++) {
+    const coffeeId = cleanText(req.body[`item${i}CoffeeId`]);
+    const kg = num(req.body[`item${i}Kg`]);
+    if (!coffeeId || kg <= 0) continue;
 
-  if (item1CoffeeId && item1Kg > 0) {
-    let coffeeName = item1CoffeeId;
-    for (let i = 0; i < coffees.length; i++) {
-      if (coffees[i].id === item1CoffeeId) {
-        coffeeName = coffees[i].name;
-        break;
-      }
-    }
-    items.push({ coffeeId: item1CoffeeId, coffeeName: coffeeName, kg: item1Kg });
+    const coffee = store.COFFEES.find(c => c.id === coffeeId);
+    items.push({
+      coffeeId,
+      coffeeName: coffee ? coffee.name : coffeeId,
+      kg
+    });
   }
 
-  if (item2CoffeeId && item2Kg > 0) {
-    let coffeeName = item2CoffeeId;
-    for (let i = 0; i < coffees.length; i++) {
-      if (coffees[i].id === item2CoffeeId) {
-        coffeeName = coffees[i].name;
-        break;
-      }
-    }
-    items.push({ coffeeId: item2CoffeeId, coffeeName: coffeeName, kg: item2Kg });
-  }
-
+  // Safety: if no items, create with empty but keep it visible (later we enforce)
   store.createOrder({
-    channel: channel,
+    channel,
     shopId: channel === "FILIALE" ? shopId : null,
     customerName: channel === "B2B" ? customerName : null,
-    deliveryDate: deliveryDate,
-    items: items,
-    note: note,
+    deliveryDate,
+    items,
+    note,
     status: "EINGEGANGEN"
   });
 
@@ -69,7 +57,16 @@ exports.advanceOrder = (req, res) => {
   if (idx >= 0 && idx < statuses.length - 1) {
     store.setOrderStatus(id, statuses[idx + 1]);
   }
+  res.redirect("/orders");
+};
 
+exports.approveOrder = (req, res) => {
+  const id = req.params.id;
+  const order = store.getOrderById(id);
+  if (!order) return res.redirect("/orders");
+
+  // Force to FREIGEGEBEN
+  store.setOrderStatus(id, "FREIGEGEBEN");
   res.redirect("/orders");
 };
 
@@ -80,16 +77,15 @@ exports.deleteOrder = (req, res) => {
 };
 
 exports.applyInventoryChange = (req, res) => {
-  const type = req.body.type;
-  const coffeeId = req.body.coffeeId;
-  const deltaKg = parseFloatSafe(req.body.deltaKg);
-  const note = req.body.note || "";
+  const type = cleanText(req.body.type); // GREEN or ROASTED
+  const coffeeId = cleanText(req.body.coffeeId);
+  const deltaKg = num(req.body.deltaKg);
 
   store.applyInventoryChange({
-    type: type,
-    coffeeId: coffeeId,
-    deltaKg: deltaKg,
-    note: note
+    type,
+    coffeeId,
+    deltaKg,
+    note: cleanText(req.body.note)
   });
 
   res.redirect("/inventory");
