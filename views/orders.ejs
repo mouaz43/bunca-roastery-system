@@ -1,5 +1,7 @@
 <%
   var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
+  var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
+  var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
 
   function statusInfo(status){
     var map = {
@@ -36,7 +38,7 @@
 <div class="card-grid">
   <div class="card">
     <h2>Bestellungen</h2>
-    <p>Eine Seite, ein Workflow: prüfen, freigeben, weiterführen. Klare Struktur für schnelles Arbeiten im Alltag.</p>
+    <p>Prüfen, freigeben, weiterführen. Jede Aktion ist direkt in der Liste verfügbar.</p>
   </div>
 
   <div class="card">
@@ -45,97 +47,58 @@
   </div>
 </div>
 
-<div style="margin-top:14px;" class="filterbar">
-  <div class="filter-left">
-    <input class="input" placeholder="Suche (ID, Kunde, Filiale)" />
-    <select class="select">
-      <option>Status: Alle</option>
-      <option>EINGEGANGEN</option>
-      <option>FREIGEGEBEN</option>
-      <option>IN_PRODUKTION</option>
-      <option>VERPACKT</option>
-      <option>AUSGELIEFERT</option>
-    </select>
-    <select class="select">
-      <option>Kanal: Alle</option>
-      <option>Filiale</option>
-      <option>B2B</option>
-    </select>
-  </div>
-
-  <div class="filter-right">
-    <span class="small-note">Filter UI jetzt, Logik danach.</span>
-    <button class="btn btn-secondary" type="button">Export</button>
-    <button class="btn btn-primary" type="button">Neue Bestellung</button>
-  </div>
-</div>
-
-<div style="margin-top:14px;" class="card card-wide">
+<div id="new" style="margin-top:14px;" class="card card-wide">
   <h2>Neue Bestellung</h2>
-  <p>UI fertig. Im nächsten Schritt verbinden wir dieses Formular mit dem Backend (ohne Design-Änderungen).</p>
+  <p>Dieses Formular ist jetzt aktiv. Es erstellt eine Bestellung im aktuellen System (Dummy Store).</p>
 
-  <div style="margin-top:12px;" class="filterbar">
-    <div class="filter-left">
-      <select class="select">
-        <option>Kanal: Filiale</option>
-        <option>Kanal: B2B</option>
-      </select>
-
-      <select class="select">
-        <option>Filiale wählen</option>
-        <option>Bunca City</option>
-        <option>Bunca Berger Straße</option>
-        <option>Bunca Grüneburgweg</option>
-      </select>
-
-      <input class="input" placeholder="B2B Kunde (nur bei B2B)" />
-      <input class="input" placeholder="Lieferdatum (YYYY-MM-DD)" />
-    </div>
-
-    <div class="filter-right">
-      <button class="btn btn-secondary" type="button">Zurücksetzen</button>
-      <button class="btn btn-primary" type="button">Anlegen</button>
-    </div>
-  </div>
-
-  <div style="margin-top:10px;" class="small-note">
-    Tipp: Starten Sie mit 1–2 Positionen. Später bauen wir eine dynamische Positionsliste (Add/Remove) ohne die Seite zu überladen.
-  </div>
-
-  <div style="margin-top:12px;" class="table-wrap">
-    <div class="table-head" style="grid-template-columns: 1fr 180px 180px 280px;">
-      <div>Artikel</div>
-      <div>Menge kg</div>
-      <div>Verpackung</div>
-      <div>Notiz</div>
-    </div>
-
-    <div class="table-row" style="grid-template-columns: 1fr 180px 180px 280px;">
-      <div><strong>Bombora</strong></div>
-      <div><input class="input" style="width:100%;" placeholder="z.B. 10" /></div>
-      <div>
-        <select class="select" style="width:100%;">
-          <option>1kg Beutel</option>
-          <option>250g Beutel</option>
-          <option>11kg</option>
+  <form method="POST" action="/actions/orders/create">
+    <div class="filterbar" style="margin-top:12px;">
+      <div class="filter-left">
+        <select class="select" name="channel">
+          <option value="FILIALE">Kanal: Filiale</option>
+          <option value="B2B">Kanal: B2B</option>
         </select>
+
+        <select class="select" name="shopId">
+          <option value="">Filiale wählen</option>
+          <% for (var s=0; s<safeShops.length; s++) { %>
+            <option value="<%= safeShops[s].id %>"><%= safeShops[s].name %></option>
+          <% } %>
+        </select>
+
+        <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" />
+        <input class="input" name="deliveryDate" placeholder="Lieferdatum (YYYY-MM-DD)" />
       </div>
-      <div><input class="input" style="width:100%;" placeholder="Optional" /></div>
+
+      <div class="filter-right">
+        <button class="btn btn-secondary" type="reset">Zurücksetzen</button>
+        <button class="btn btn-primary" type="submit">Anlegen</button>
+      </div>
     </div>
 
-    <div class="table-row" style="grid-template-columns: 1fr 180px 180px 280px;">
-      <div><strong>Fiver</strong></div>
-      <div><input class="input" style="width:100%;" placeholder="z.B. 5" /></div>
-      <div>
-        <select class="select" style="width:100%;">
-          <option>1kg Beutel</option>
-          <option>250g Beutel</option>
-          <option>11kg</option>
-        </select>
+    <div style="margin-top:12px;" class="table-wrap">
+      <div class="table-head" style="grid-template-columns: 1fr 180px 280px;">
+        <div>Artikel</div>
+        <div>Menge kg</div>
+        <div>Notiz</div>
       </div>
-      <div><input class="input" style="width:100%;" placeholder="Optional" /></div>
+
+      <% for (var i=1; i<=4; i++) { %>
+        <div class="table-row" style="grid-template-columns: 1fr 180px 280px;">
+          <div>
+            <select class="select" style="width:100%;" name="item<%= i %>CoffeeId">
+              <option value="">Sorte wählen</option>
+              <% for (var c=0; c<safeCoffees.length; c++) { %>
+                <option value="<%= safeCoffees[c].id %>"><%= safeCoffees[c].name %></option>
+              <% } %>
+            </select>
+          </div>
+          <div><input class="input" style="width:100%;" name="item<%= i %>Kg" placeholder="z.B. 10" /></div>
+          <div><input class="input" style="width:100%;" name="note" placeholder="Optional (gesamt)" /></div>
+        </div>
+      <% } %>
     </div>
-  </div>
+  </form>
 </div>
 
 <div style="margin-top:14px;" class="table-wrap">
@@ -152,12 +115,11 @@
     <div class="table-row">
       <div class="mono">-</div>
       <div>-</div>
-      <div>Keine Bestellungen geladen</div>
+      <div>Keine Bestellungen vorhanden</div>
       <div>-</div>
       <div><span class="badge"><span class="dot"></span>Info</span></div>
       <div class="row-actions">
-        <button class="btn btn-primary" type="button">Prüfen</button>
-        <button class="btn btn-secondary" type="button">Freigeben</button>
+        <a class="btn btn-primary" href="#new">Neue Bestellung</a>
       </div>
     </div>
   <% } %>
@@ -173,9 +135,17 @@
       <div><%= o.deliveryDate ? o.deliveryDate : "-" %></div>
       <div><span class="<%= s.cls %>"><span class="dot"></span><%= s.label %></span></div>
       <div class="row-actions">
-        <button class="btn btn-primary" type="button">Weiter</button>
-        <button class="btn btn-secondary" type="button">Details</button>
-        <button class="btn btn-danger" type="button">Löschen</button>
+        <form method="POST" action="/actions/orders/<%= o.id %>/advance">
+          <button class="btn btn-primary" type="submit">Weiter</button>
+        </form>
+
+        <form method="POST" action="/actions/orders/<%= o.id %>/approve">
+          <button class="btn btn-secondary" type="submit">Freigeben</button>
+        </form>
+
+        <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
+          <button class="btn btn-danger" type="submit">Löschen</button>
+        </form>
       </div>
     </div>
 
@@ -185,24 +155,25 @@
           <div>
             <div class="small-note">Details</div>
             <div style="margin-top:6px;">
-              <strong>Positionen:</strong> Platzhalter (später echte Liste aus Daten).
+              <strong>Notiz:</strong> <%= o.note ? o.note : "-" %>
             </div>
             <div style="margin-top:6px;">
-              <strong>Notiz:</strong> <%= o.note ? o.note : "-" %>
+              <strong>Positionen:</strong>
+              <% if (o.items && o.items.length) { %>
+                <% for (var k=0; k<o.items.length; k++) { %>
+                  <div class="small-note"><%= o.items[k].coffeeName %> — <%= o.items[k].kg %> kg</div>
+                <% } %>
+              <% } else { %>
+                <div class="small-note">Keine Positionen</div>
+              <% } %>
             </div>
           </div>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
-            <button class="btn btn-secondary" type="button">Als freigegeben markieren</button>
-            <button class="btn btn-ghost" type="button">Drucken</button>
+            <a class="btn btn-ghost" href="/production">In Produktion prüfen</a>
           </div>
         </div>
       </div>
     </div>
   <% } %>
-</div>
-
-<div style="margin-top:14px;" class="card card-wide">
-  <h2>Erklärung</h2>
-  <p>Die Seite ist bewusst wie ein Cockpit gebaut: oben Eingabe, darunter Liste, darunter Details. So arbeiten Filialen und Rösterei schnell ohne Scroll-Chaos.</p>
 </div>
