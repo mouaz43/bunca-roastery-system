@@ -1,7 +1,4 @@
 // data/store.js
-// In-Memory Datenstore (Übergang bis PostgreSQL aktiv ist).
-// Vorteil: Wir können UI und Logik fertig bauen, bevor die Datenbank kommt.
-
 const { randomUUID } = require("crypto");
 
 function nowISO() {
@@ -30,7 +27,6 @@ const COFFEES = [
   { id: "brazil", name: "Brazil", packDefaultKg: 1 }
 ];
 
-// Beispiel-Bestellungen
 let orders = [
   {
     id: randomUUID(),
@@ -54,14 +50,11 @@ let orders = [
     deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10),
     status: "FREIGEGEBEN",
     createdAt: nowISO(),
-    items: [
-      { coffeeId: "bombora", coffeeName: "Bombora", kg: 22 }
-    ],
+    items: [{ coffeeId: "bombora", coffeeName: "Bombora", kg: 22 }],
     note: "22kg als 2x 11kg."
   }
 ];
 
-// Lager (einfach)
 let inventory = {
   greenBeansKg: {
     bombora: 120,
@@ -84,17 +77,20 @@ let inventory = {
 };
 
 function listOrders() {
-  return [...orders].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return orders.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 function getOrderById(id) {
-  return orders.find(o => o.id === id) || null;
+  for (let i = 0; i < orders.length; i++) {
+    if (orders[i].id === id) return orders[i];
+  }
+  return null;
 }
 
 function createOrder(payload) {
   const id = randomUUID();
   const order = {
-    id,
+    id: id,
     channel: payload.channel,
     customerName: payload.customerName || null,
     shopId: payload.shopId || null,
@@ -125,18 +121,22 @@ function getInventory() {
   return inventory;
 }
 
-function applyInventoryChange({ type, coffeeId, deltaKg, note }) {
-  // type: "GREEN" oder "ROASTED"
-  if (!coffeeId || typeof deltaKg !== "number") return false;
+function applyInventoryChange(change) {
+  const type = change.type;
+  const coffeeId = change.coffeeId;
+  const deltaKg = change.deltaKg;
+
+  if (!coffeeId) return false;
+  if (typeof deltaKg !== "number" || !isFinite(deltaKg)) return false;
 
   if (type === "GREEN") {
     const current = inventory.greenBeansKg[coffeeId] || 0;
     inventory.greenBeansKg[coffeeId] = Math.max(0, current + deltaKg);
-  }
-
-  if (type === "ROASTED") {
+  } else if (type === "ROASTED") {
     const current = inventory.roastedKg[coffeeId] || 0;
     inventory.roastedKg[coffeeId] = Math.max(0, current + deltaKg);
+  } else {
+    return false;
   }
 
   inventory.updatedAt = nowISO();
@@ -144,25 +144,36 @@ function applyInventoryChange({ type, coffeeId, deltaKg, note }) {
 }
 
 function computeRoastDemand() {
-  // Summe der kg pro Sorte aus Bestellungen, die FREIGEGEBEN oder höher sind,
-  // aber noch nicht AUSGELIEFERT.
-  const eligible = new Set(["FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT"]);
+  const eligible = { FREIGEGEBEN: true, IN_PRODUKTION: true, VERPACKT: true };
   const totals = {};
 
-  for (const o of orders) {
-    if (!eligible.has(o.status)) continue;
-    for (const it of o.items) {
-      totals[it.coffeeId] = (totals[it.coffeeId] || 0) + (Number(it.kg) || 0);
+  for (let i = 0; i < orders.length; i++) {
+    const o = orders[i];
+    if (!eligible[o.status]) continue;
+
+    for (let j = 0; j < o.items.length; j++) {
+      const it = o.items[j];
+      const kg = Number(it.kg) || 0;
+      totals[it.coffeeId] = (totals[it.coffeeId] || 0) + kg;
     }
   }
 
-  // sortiert als Array zurückgeben
-  return Object.entries(totals)
-    .map(([coffeeId, kg]) => {
-      const c = COFFEES.find(x => x.id === coffeeId);
-      return { coffeeId, coffeeName: c ? c.name : coffeeId, kg };
-    })
-    .sort((a, b) => b.kg - a.kg);
+  const result = [];
+  const keys = Object.keys(totals);
+  for (let i = 0; i < keys.length; i++) {
+    const coffeeId = keys[i];
+    let coffeeName = coffeeId;
+    for (let k = 0; k < COFFEES.length; k++) {
+      if (COFFEES[k].id === coffeeId) {
+        coffeeName = COFFEES[k].name;
+        break;
+      }
+    }
+    result.push({ coffeeId, coffeeName, kg: totals[coffeeId] });
+  }
+
+  result.sort((a, b) => b.kg - a.kg);
+  return result;
 }
 
 module.exports = {
