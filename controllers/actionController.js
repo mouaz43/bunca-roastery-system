@@ -9,8 +9,31 @@ function cleanText(v) {
   return String(v ?? "").trim();
 }
 
+function parseDateToISO(input) {
+  const s = cleanText(input);
+  if (!s) return new Date().toISOString().slice(0, 10);
+
+  // If already ISO: 2026-02-20
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // German: 20.02.2026 or 20/02/2026 or 20-02-2026
+  const m = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, "0");
+    const mm = m[2].padStart(2, "0");
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Fallback: try Date parsing (last resort)
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+
+  // If invalid, use today (and later we can show a nice validation message)
+  return new Date().toISOString().slice(0, 10);
+}
+
 function errorRedirect(res, path, msg) {
-  // Minimal: pass error via querystring (later we show toast nicely)
   const qs = msg ? `?error=${encodeURIComponent(msg)}` : "";
   return res.redirect(path + qs);
 }
@@ -20,7 +43,8 @@ exports.createOrder = async (req, res) => {
   const channel = cleanText(req.body.channel) || "FILIALE";
   const shopId = cleanText(req.body.shopId) || null;
   const customerName = cleanText(req.body.customerName) || null;
-  const deliveryDate = cleanText(req.body.deliveryDate) || new Date().toISOString().slice(0, 10);
+
+  const deliveryDate = parseDateToISO(req.body.deliveryDate);
   const note = cleanText(req.body.note);
 
   const items = [];
@@ -68,7 +92,6 @@ exports.advanceOrder = async (req, res) => {
   if (idx < 0) return errorRedirect(res, "/orders", "Unbekannter Status.");
   if (idx >= statuses.length - 1) return errorRedirect(res, "/orders", "Bestellung ist bereits abgeschlossen.");
 
-  // Hard rule: cannot go to IN_PRODUKTION unless already FREIGEGEBEN
   const next = statuses[idx + 1];
   if (next === "IN_PRODUKTION" && order.status !== "FREIGEGEBEN") {
     return errorRedirect(res, "/orders", "Nur freigegebene Bestellungen können in Produktion gehen.");
@@ -97,21 +120,15 @@ exports.deleteOrder = async (req, res) => {
   res.redirect("/orders");
 };
 
-// NEW: Delivery booking for an order (consume roasted stock)
 exports.deliverOrder = async (req, res) => {
   const id = req.params.id;
   const order = await store.getOrderById(id);
   if (!order) return res.redirect("/orders");
 
-  if (order.status !== "VERPACKT" && order.status !== "IN_PRODUKTION" && order.status !== "FREIGEGEBEN") {
-    return errorRedirect(res, "/orders", "Auslieferung ist erst nach Freigabe sinnvoll.");
-  }
+  if (order.status === "AUSGELIEFERT") return errorRedirect(res, "/orders", "Bereits ausgeliefert.");
 
-  // Try to consume roasted stock. If not enough, block.
   const ok = await store.consumeRoastedForOrder(order);
-  if (!ok.ok) {
-    return errorRedirect(res, "/orders", `Nicht genug Röstkaffee: ${ok.reason}`);
-  }
+  if (!ok.ok) return errorRedirect(res, "/orders", `Nicht genug Röstkaffee: ${ok.reason}`);
 
   await store.setOrderStatus(id, "AUSGELIEFERT");
   res.redirect("/orders");
