@@ -1,21 +1,111 @@
+<%
+  var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
+
+  function statusBadge(status){
+    var cls = "badge";
+    if (status === "FREIGEGEBEN" || status === "VERPACKT") cls = "badge ok";
+    if (status === "EINGEGANGEN" || status === "IN_PRODUKTION") cls = "badge warn";
+    if (status === "STORNIERT") cls = "badge danger";
+    return cls;
+  }
+
+  function channelLabel(o){
+    if (!o || !o.channel) return "-";
+    return (o.channel === "B2B") ? "B2B" : "Filiale";
+  }
+
+  function targetLabel(o){
+    if (!o) return "-";
+    if (o.channel === "B2B") return o.customerName ? o.customerName : "B2B Kunde";
+    if (o.shopName) return o.shopName;
+    if (o.shopId) return o.shopId;
+    return "Filiale";
+  }
+%>
+
 <div class="card-grid">
   <div class="card">
     <h2>Bestellübersicht</h2>
-    <p>Hier sehen Sie alle Bestellungen von Filialen und B2B-Kunden inklusive Status und Lieferdatum.</p>
+    <p>Alle Bestellungen von Filialen und B2B-Kunden inklusive Status, Lieferdatum und Schnellaktionen.</p>
   </div>
 
   <div class="card">
-    <h2>Status-Workflow</h2>
-    <p>Entwurf  Eingegangen  Freigegeben  In Produktion  Verpackt  Ausgeliefert</p>
+    <h2>Workflow</h2>
+    <p>Prüfen  Freigeben  Produktion  Verpackung  Auslieferung. Jeder Schritt ist klar und nachvollziehbar.</p>
   </div>
 </div>
 
-<div style="margin-top:14px;" class="card">
-  <h2>Filter</h2>
-  <p>Platzhalter: Filiale/B2B, Status, Zeitraum, Suche.</p>
+<div style="margin-top:14px;" class="filterbar">
+  <div class="filter-left">
+    <input class="input" placeholder="Suche (ID, Kunde, Filiale)" />
+    <select class="select">
+      <option>Status: Alle</option>
+      <option>EINGEGANGEN</option>
+      <option>FREIGEGEBEN</option>
+      <option>IN_PRODUKTION</option>
+      <option>VERPACKT</option>
+      <option>AUSGELIEFERT</option>
+    </select>
+    <select class="select">
+      <option>Kanal: Alle</option>
+      <option>Filiale</option>
+      <option>B2B</option>
+    </select>
+  </div>
+
+  <div class="filter-right">
+    <span class="small-note">Platzhalter Filter UI (Logik kommt nach UI)</span>
+    <a class="btn btn-primary" href="/orders">Neue Bestellung</a>
+    <a class="btn btn-secondary" href="/production">Zur Produktion</a>
+  </div>
 </div>
 
-<div style="margin-top:14px;" class="card">
-  <h2>Liste</h2>
-  <p>Platzhalter: Hier kommt eine professionelle Tabelle mit Bestellungen und Schnellaktionen.</p>
+<div class="table-wrap">
+  <div class="table-head">
+    <div>ID</div>
+    <div>Kanal</div>
+    <div>Kunde Filiale</div>
+    <div>Lieferdatum</div>
+    <div>Status</div>
+    <div>Aktionen</div>
+  </div>
+
+  <% if (!safeOrders.length) { %>
+    <div class="table-row">
+      <div class="mono">-</div>
+      <div>-</div>
+      <div>Keine Daten geladen</div>
+      <div>-</div>
+      <div><span class="badge"><span class="dot"></span>Platzhalter</span></div>
+      <div class="row-actions">
+        <button class="btn btn-secondary" type="button">Freigeben</button>
+        <button class="btn btn-ghost" type="button">Details</button>
+      </div>
+    </div>
+  <% } %>
+
+  <% for (var i = 0; i < safeOrders.length; i++) { 
+      var o = safeOrders[i];
+      var shortId = (o.id && o.id.length >= 8) ? o.id.slice(0,8) : "-";
+  %>
+    <div class="table-row">
+      <div class="mono"><%= shortId %></div>
+      <div><%= channelLabel(o) %></div>
+      <div><%= targetLabel(o) %></div>
+      <div><%= o.deliveryDate ? o.deliveryDate : "-" %></div>
+      <div>
+        <span class="<%= statusBadge(o.status) %>"><span class="dot"></span><%= o.status ? o.status : "-" %></span>
+      </div>
+      <div class="row-actions">
+        <button class="btn btn-primary" type="button">Weiter</button>
+        <button class="btn btn-secondary" type="button">Bearbeiten</button>
+        <button class="btn btn-danger" type="button">Löschen</button>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Erklärung</h2>
+  <p>Diese Seite ist so aufgebaut, dass man mit wenigen Klicks die Arbeit erledigt: Filtern, prüfen, Status weiterführen. Die echte Logik (Filtern, Status-Weiter) aktivieren wir nach dem UI-Finish.</p>
 </div>
