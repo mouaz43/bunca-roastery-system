@@ -14,6 +14,15 @@ const ORDER_STATUS = [
   "AUSGELIEFERT"
 ];
 
+const BATCH_STATUS = [
+  "GEPLANT",
+  "GEROESTET",
+  "ABGEKUEHLT",
+  "VERPACKT",
+  "BEREIT",
+  "AUSGELIEFERT"
+];
+
 const SHOPS = [
   { id: "city", name: "Bunca City" },
   { id: "berger", name: "Bunca Berger Straße" },
@@ -76,21 +85,44 @@ let inventory = {
   updatedAt: nowISO()
 };
 
+// NEW: Batches
+let batches = [
+  {
+    id: randomUUID(),
+    coffeeId: "bombora",
+    coffeeName: "Bombora",
+    kg: 12,
+    status: "GEPLANT",
+    createdAt: nowISO(),
+    note: "Startcharge"
+  }
+];
+
+// NEW: Activity log (audit)
+let activity = [];
+
+function log(action, meta) {
+  activity.unshift({
+    id: randomUUID(),
+    at: nowISO(),
+    action,
+    meta: meta || {}
+  });
+  if (activity.length > 250) activity = activity.slice(0, 250);
+}
+
 function listOrders() {
   return orders.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
 function getOrderById(id) {
-  for (let i = 0; i < orders.length; i++) {
-    if (orders[i].id === id) return orders[i];
-  }
-  return null;
+  return orders.find(o => o.id === id) || null;
 }
 
 function createOrder(payload) {
   const id = randomUUID();
   const order = {
-    id: id,
+    id,
     channel: payload.channel,
     customerName: payload.customerName || null,
     shopId: payload.shopId || null,
@@ -101,20 +133,25 @@ function createOrder(payload) {
     note: payload.note || ""
   };
   orders.push(order);
+  log("ORDER_CREATE", { orderId: id, channel: order.channel, deliveryDate: order.deliveryDate });
   return order;
 }
 
 function setOrderStatus(id, nextStatus) {
   const order = getOrderById(id);
   if (!order) return null;
+  const prev = order.status;
   order.status = nextStatus;
+  log("ORDER_STATUS", { orderId: id, from: prev, to: nextStatus });
   return order;
 }
 
 function deleteOrder(id) {
   const before = orders.length;
   orders = orders.filter(o => o.id !== id);
-  return orders.length !== before;
+  const changed = orders.length !== before;
+  if (changed) log("ORDER_DELETE", { orderId: id });
+  return changed;
 }
 
 function getInventory() {
@@ -140,52 +177,115 @@ function applyInventoryChange(change) {
   }
 
   inventory.updatedAt = nowISO();
+  log("INVENTORY_CHANGE", { type, coffeeId, deltaKg, note: change.note || "" });
   return true;
 }
 
+// Demand from orders (freigegeben/produktion/verpackt)
 function computeRoastDemand() {
   const eligible = { FREIGEGEBEN: true, IN_PRODUKTION: true, VERPACKT: true };
   const totals = {};
 
-  for (let i = 0; i < orders.length; i++) {
-    const o = orders[i];
+  for (const o of orders) {
     if (!eligible[o.status]) continue;
-
-    for (let j = 0; j < o.items.length; j++) {
-      const it = o.items[j];
+    for (const it of (o.items || [])) {
       const kg = Number(it.kg) || 0;
       totals[it.coffeeId] = (totals[it.coffeeId] || 0) + kg;
     }
   }
 
   const result = [];
-  const keys = Object.keys(totals);
-  for (let i = 0; i < keys.length; i++) {
-    const coffeeId = keys[i];
-    let coffeeName = coffeeId;
-    for (let k = 0; k < COFFEES.length; k++) {
-      if (COFFEES[k].id === coffeeId) {
-        coffeeName = COFFEES[k].name;
-        break;
-      }
-    }
-    result.push({ coffeeId, coffeeName, kg: totals[coffeeId] });
+  for (const coffeeId of Object.keys(totals)) {
+    const coffee = COFFEES.find(c => c.id === coffeeId);
+    result.push({ coffeeId, coffeeName: coffee ? coffee.name : coffeeId, kg: totals[coffeeId] });
   }
 
   result.sort((a, b) => b.kg - a.kg);
   return result;
 }
 
+// NEW: batches
+function listBatches() {
+  return batches.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+function getBatchById(id) {
+  return batches.find(b => b.id === id) || null;
+}
+
+function createBatch(payload) {
+  const id = randomUUID();
+  const batch = {
+    id,
+    coffeeId: payload.coffeeId,
+    coffeeName: payload.coffeeName,
+    kg: payload.kg,
+    status: payload.status || "GEPLANT",
+    createdAt: nowISO(),
+    note: payload.note || ""
+  };
+  batches.push(batch);
+  log("BATCH_CREATE", { batchId: id, coffeeId: batch.coffeeId, kg: batch.kg });
+  return batch;
+}
+
+function advanceBatch(id) {
+  const batch = getBatchById(id);
+  if (!batch) return null;
+
+  const idx = BATCH_STATUS.indexOf(batch.status);
+  if (idx >= 0 && idx < BATCH_STATUS.length - 1) {
+    const prev = batch.status;
+    batch.status = BATCH_STATUS[idx + 1];
+    log("BATCH_STATUS", { batchId: id, from: prev, to: batch.status });
+
+    // Simple stock movement rules (can refine later):
+    // When batch becomes GEROESTET -> consume green, add roasted (same kg).
+    if (batch.status === "GEROESTET") {
+      inventory.greenBeansKg[batch.coffeeId] = Math.max(0, (inventory.greenBeansKg[batch.coffeeId] || 0) - batch.kg);
+      inventory.roastedKg[batch.coffeeId] = Math.max(0, (inventory.roastedKg[batch.coffeeId] || 0) + batch.kg);
+      inventory.updatedAt = nowISO();
+      log("INVENTORY_MOVE", { from: "GREEN", to: "ROASTED", coffeeId: batch.coffeeId, kg: batch.kg, batchId: id });
+    }
+  }
+
+  return batch;
+}
+
+function deleteBatch(id) {
+  const before = batches.length;
+  batches = batches.filter(b => b.id !== id);
+  const changed = batches.length !== before;
+  if (changed) log("BATCH_DELETE", { batchId: id });
+  return changed;
+}
+
+function listActivity() {
+  return activity.slice(0, 250);
+}
+
 module.exports = {
   ORDER_STATUS,
+  BATCH_STATUS,
   SHOPS,
   COFFEES,
+
   listOrders,
   getOrderById,
   createOrder,
   setOrderStatus,
   deleteOrder,
+
   getInventory,
   applyInventoryChange,
-  computeRoastDemand
+
+  computeRoastDemand,
+
+  listBatches,
+  getBatchById,
+  createBatch,
+  advanceBatch,
+  deleteBatch,
+
+  listActivity
 };
