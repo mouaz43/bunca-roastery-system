@@ -3,6 +3,8 @@
   var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
   var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
 
+  var urlError = (typeof error !== "undefined" && error) ? error : null;
+
   function statusInfo(status){
     var map = {
       "ENTWURF": { cls: "badge", label: "Entwurf" },
@@ -38,7 +40,7 @@
 <div class="card-grid">
   <div class="card">
     <h2>Bestellungen</h2>
-    <p>Prüfen, freigeben, weiterführen. Jede Aktion ist direkt in der Liste verfügbar.</p>
+    <p>Prüfen, freigeben, weiterführen. Auslieferung bucht Röstkaffee aus dem Lager.</p>
   </div>
 
   <div class="card">
@@ -49,7 +51,7 @@
 
 <div id="new" style="margin-top:14px;" class="card card-wide">
   <h2>Neue Bestellung</h2>
-  <p>Dieses Formular ist jetzt aktiv. Es erstellt eine Bestellung im aktuellen System (Dummy Store).</p>
+  <p>Erstellt eine Bestellung im System. Mindestens eine Position ist erforderlich.</p>
 
   <form method="POST" action="/actions/orders/create">
     <div class="filterbar" style="margin-top:12px;">
@@ -77,14 +79,13 @@
     </div>
 
     <div style="margin-top:12px;" class="table-wrap">
-      <div class="table-head" style="grid-template-columns: 1fr 180px 280px;">
+      <div class="table-head" style="grid-template-columns: 1fr 180px;">
         <div>Artikel</div>
         <div>Menge kg</div>
-        <div>Notiz</div>
       </div>
 
       <% for (var i=1; i<=4; i++) { %>
-        <div class="table-row" style="grid-template-columns: 1fr 180px 280px;">
+        <div class="table-row" style="grid-template-columns: 1fr 180px;">
           <div>
             <select class="select" style="width:100%;" name="item<%= i %>CoffeeId">
               <option value="">Sorte wählen</option>
@@ -94,9 +95,12 @@
             </select>
           </div>
           <div><input class="input" style="width:100%;" name="item<%= i %>Kg" placeholder="z.B. 10" /></div>
-          <div><input class="input" style="width:100%;" name="note" placeholder="Optional (gesamt)" /></div>
         </div>
       <% } %>
+    </div>
+
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <input class="input" style="flex:1; min-width:260px;" name="note" placeholder="Notiz (optional)" />
     </div>
   </form>
 </div>
@@ -143,6 +147,10 @@
           <button class="btn btn-secondary" type="submit">Freigeben</button>
         </form>
 
+        <form method="POST" action="/actions/orders/<%= o.id %>/deliver" onsubmit="return confirm('Auslieferung buchen? Röstkaffee wird abgezogen.');">
+          <button class="btn btn-secondary" type="submit">Ausliefern</button>
+        </form>
+
         <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
           <button class="btn btn-danger" type="submit">Löschen</button>
         </form>
@@ -171,6 +179,7 @@
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
             <a class="btn btn-ghost" href="/production">In Produktion prüfen</a>
+            <a class="btn btn-ghost" href="/inventory">Lager prüfen</a>
           </div>
         </div>
       </div>
