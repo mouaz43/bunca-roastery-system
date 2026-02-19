@@ -6,8 +6,9 @@ const actionController = require("../controllers/actionController");
 // Orders
 router.post("/orders/create", actionController.createOrder);
 router.post("/orders/:id/advance", actionController.advanceOrder);
-router.post("/orders/:id/delete", actionController.deleteOrder);
 router.post("/orders/:id/approve", actionController.approveOrder);
+router.post("/orders/:id/deliver", actionController.deliverOrder);
+router.post("/orders/:id/delete", actionController.deleteOrder);
 
 // Inventory
 router.post("/inventory/apply", actionController.applyInventoryChange);
