@@ -10,6 +10,7 @@ function cleanText(v) {
   return String(v || "").trim();
 }
 
+// ORDERS
 exports.createOrder = (req, res) => {
   const channel = cleanText(req.body.channel) || "FILIALE";
   const shopId = cleanText(req.body.shopId) || null;
@@ -17,7 +18,6 @@ exports.createOrder = (req, res) => {
   const deliveryDate = cleanText(req.body.deliveryDate) || new Date().toISOString().slice(0, 10);
   const note = cleanText(req.body.note);
 
-  // Items: allow up to 8 lines from UI (we will expand later)
   const items = [];
   for (let i = 1; i <= 8; i++) {
     const coffeeId = cleanText(req.body[`item${i}CoffeeId`]);
@@ -25,14 +25,9 @@ exports.createOrder = (req, res) => {
     if (!coffeeId || kg <= 0) continue;
 
     const coffee = store.COFFEES.find(c => c.id === coffeeId);
-    items.push({
-      coffeeId,
-      coffeeName: coffee ? coffee.name : coffeeId,
-      kg
-    });
+    items.push({ coffeeId, coffeeName: coffee ? coffee.name : coffeeId, kg });
   }
 
-  // Safety: if no items, create with empty but keep it visible (later we enforce)
   store.createOrder({
     channel,
     shopId: channel === "FILIALE" ? shopId : null,
@@ -64,20 +59,18 @@ exports.approveOrder = (req, res) => {
   const id = req.params.id;
   const order = store.getOrderById(id);
   if (!order) return res.redirect("/orders");
-
-  // Force to FREIGEGEBEN
   store.setOrderStatus(id, "FREIGEGEBEN");
   res.redirect("/orders");
 };
 
 exports.deleteOrder = (req, res) => {
-  const id = req.params.id;
-  store.deleteOrder(id);
+  store.deleteOrder(req.params.id);
   res.redirect("/orders");
 };
 
+// INVENTORY
 exports.applyInventoryChange = (req, res) => {
-  const type = cleanText(req.body.type); // GREEN or ROASTED
+  const type = cleanText(req.body.type);
   const coffeeId = cleanText(req.body.coffeeId);
   const deltaKg = num(req.body.deltaKg);
 
@@ -89,4 +82,34 @@ exports.applyInventoryChange = (req, res) => {
   });
 
   res.redirect("/inventory");
+};
+
+// BATCHES
+exports.createBatch = (req, res) => {
+  const coffeeId = cleanText(req.body.coffeeId);
+  const kg = num(req.body.kg);
+  const note = cleanText(req.body.note);
+
+  if (!coffeeId || kg <= 0) return res.redirect("/production");
+
+  const coffee = store.COFFEES.find(c => c.id === coffeeId);
+  store.createBatch({
+    coffeeId,
+    coffeeName: coffee ? coffee.name : coffeeId,
+    kg,
+    status: "GEPLANT",
+    note
+  });
+
+  res.redirect("/production");
+};
+
+exports.advanceBatch = (req, res) => {
+  store.advanceBatch(req.params.id);
+  res.redirect("/production");
+};
+
+exports.deleteBatch = (req, res) => {
+  store.deleteBatch(req.params.id);
+  res.redirect("/production");
 };
