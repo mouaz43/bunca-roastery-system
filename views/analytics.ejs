@@ -1,21 +1,83 @@
 <div class="card-grid">
   <div class="card">
-    <h2>Bestellungen gesamt</h2>
-    <p><strong><%= totalOrders %></strong></p>
+    <h2>KPI Überblick</h2>
+    <p>Hier entstehen später Trends, Forecasts, Abweichungen und Warnungen. Aktuell: UI fertig, Logik folgt.</p>
   </div>
 
   <div class="card">
-    <h2>Ausgeliefert</h2>
-    <p><strong><%= delivered %></strong></p>
+    <h2>Bestellungen</h2>
+    <p>Platzhalter: Gesamt, offen, fällig heute, verspätet.</p>
   </div>
 
   <div class="card">
-    <h2>Platzhalter</h2>
-    <p>Hier kommen Trends und Wochenvergleiche.</p>
+    <h2>Produktion</h2>
+    <p>Platzhalter: geröstet diese Woche, Auslastung, Durchlaufzeit.</p>
   </div>
 
   <div class="card">
-    <h2>Platzhalter</h2>
-    <p>Hier kommen Yield und Abweichungen pro Charge.</p>
+    <h2>Lager</h2>
+    <p>Platzhalter: kritisch, niedrig, OK, Lieferstatus.</p>
   </div>
+</div>
+
+<div style="margin-top:14px;" class="filterbar">
+  <div class="filter-left">
+    <select class="select">
+      <option>Zeitraum: 7 Tage</option>
+      <option>Zeitraum: 30 Tage</option>
+      <option>Zeitraum: 90 Tage</option>
+    </select>
+    <select class="select">
+      <option>Standort: Alle</option>
+      <option>City</option>
+      <option>Berger Straße</option>
+      <option>Grüneburgweg</option>
+    </select>
+  </div>
+
+  <div class="filter-right">
+    <span class="small-note">Charts kommen nach UI-Finish.</span>
+    <button class="btn btn-secondary" type="button">Export</button>
+    <button class="btn btn-primary" type="button">Bericht</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-head">
+    <div>Kennzahl</div>
+    <div>Wert</div>
+    <div>Trend</div>
+    <div>Kommentar</div>
+    <div>Status</div>
+    <div>Aktionen</div>
+  </div>
+
+  <div class="table-row">
+    <div><strong>Forecast Genauigkeit</strong></div>
+    <div>Platzhalter</div>
+    <div>Platzhalter</div>
+    <div>Später vergleichen wir Soll vs Ist pro Sorte.</div>
+    <div><span class="badge"><span class="dot"></span>Info</span></div>
+    <div class="row-actions">
+      <button class="btn btn-secondary" type="button">Details</button>
+      <button class="btn btn-ghost" type="button">Pin</button>
+    </div>
+  </div>
+
+  <div class="table-row">
+    <div><strong>Kritische Bestände</strong></div>
+    <div>Platzhalter</div>
+    <div>Platzhalter</div>
+    <div>Später generieren wir automatische Einkaufswarnungen.</div>
+    <div><span class="badge warn"><span class="dot"></span>Warnung</span></div>
+    <div class="row-actions">
+      <button class="btn btn-primary" type="button">Zu Lager</button>
+      <button class="btn btn-ghost" type="button">Export</button>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Erklärung</h2>
+  <p>Analysen sind nur dann nützlich, wenn sie Entscheidungen erleichtern. Deshalb bauen wir hier klare KPIs und direkte Aktionen statt “schöne Charts ohne Wirkung”.</p>
 </div>
