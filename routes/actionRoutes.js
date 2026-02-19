@@ -1,6 +1,4 @@
 // routes/actionRoutes.js
-// POST Aktionen für UI Workflows (Bestellungen, Lager, etc.)
-
 const express = require("express");
 const router = express.Router();
 
