@@ -1,24 +1,26 @@
-<%
-// views/settings.ejs
-// Erwartete Variablen vom Server:
-// - title, pageTitle, pageSubtitle, activeNav
-%>
-
 <div class="card-grid">
   <div class="card">
-    <h2>Kaffeesorten verwalten</h2>
-    <p>Neue Sorten anlegen, Profile pflegen, Standard-Packgrößen definieren.</p>
+    <h2>Kaffeesorten</h2>
+    <p>Sorten, Packgrößen und interne Namen pflegen. Später auch: Röstprofile und Standard-Chargen.</p>
   </div>
 
   <div class="card">
     <h2>Rollen und Benutzer</h2>
-    <p>Filialen, B2B-Kunden und Rösterei-Team verwalten.</p>
+    <p>Admin, Rösterei, Filiale und B2B. Jede Rolle sieht nur, was sie braucht.</p>
+  </div>
+
+  <div class="card">
+    <h2>Filialen</h2>
+    <p>Standorte verwalten: City, Berger Straße, Grüneburgweg. Später: Lieferzeiten und Default-Bedarf.</p>
+  </div>
+
+  <div class="card">
+    <h2>Systemparameter</h2>
+    <p>Mindestbestände, Kapazitäten, Warnstufen. Alles später sauber konfigurierbar.</p>
   </div>
 </div>
 
-<div style="margin-top: 14px;">
-  <div class="card" style="grid-column: span 12;">
-    <h2>Systemeinstellungen</h2>
-    <p>Platzhalter: Schwellenwerte, Mindestbestände, Kapazität, Benachrichtigungen.</p>
-  </div>
+<div style="margin-top: 14px;" class="card" >
+  <h2>Hinweis</h2>
+  <p>In Step 1 fokussieren wir uns auf die Bedienbarkeit und ein klares UI. Danach bauen wir die komplette Logik darauf.</p>
 </div>
