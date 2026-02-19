@@ -1,13 +1,13 @@
+<!-- views/partials/layout.ejs -->
 <!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= pageTitle || "Bunca Rösterei" %></title>
+  <title><%= (typeof pageTitle !== "undefined" && pageTitle) ? pageTitle : "Bunca Rösterei" %></title>
 
   <style>
     :root{
-      /* Bunca palette */
       --cream:#f7f1e6;
       --cream2:#efe3d2;
       --coffee:#3a2518;
@@ -16,8 +16,6 @@
       --border:rgba(58,37,24,.14);
       --text:#2a1a12;
       --muted:rgba(42,26,18,.70);
-
-      --radius:18px;
       --radius2:24px;
       --shadow:0 14px 45px rgba(30,18,12,.12);
       --shadow2:0 10px 28px rgba(30,18,12,.10);
@@ -26,45 +24,36 @@
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       color:var(--text);
       background:
         radial-gradient(1100px 700px at 12% 8%, rgba(200,163,106,.22), transparent 55%),
         radial-gradient(900px 650px at 92% 10%, rgba(90,58,36,.12), transparent 55%),
         linear-gradient(180deg, var(--cream), var(--cream2));
     }
-
     a{color:var(--coffee2);text-decoration:none}
     a:hover{text-decoration:underline}
-
     .small-note{color:var(--muted);font-size:13px;line-height:1.35}
 
-    .app-shell{
-      display:grid;
-      grid-template-columns: 300px 1fr;
-      min-height:100vh;
-    }
+    .app-shell{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
 
-    /* Sidebar */
     .sidebar{
       padding:18px;
       border-right:1px solid var(--border);
       background:rgba(255,255,255,.35);
-      backdrop-filter: blur(10px);
+      backdrop-filter:blur(10px);
     }
-
     .sidebar-header{
       padding:14px 14px 12px;
       border:1px solid var(--border);
       border-radius:var(--radius2);
-      background: linear-gradient(180deg, rgba(255,255,255,.70), rgba(255,255,255,.35));
-      box-shadow: var(--shadow2);
+      background:linear-gradient(180deg, rgba(255,255,255,.70), rgba(255,255,255,.35));
+      box-shadow:var(--shadow2);
     }
     .brand-title{font-weight:900;letter-spacing:.2px}
     .brand-sub{margin-top:4px;font-size:12px;color:var(--muted)}
 
     .nav{margin-top:14px;display:grid;gap:10px}
-
     .nav-item{
       display:flex;
       align-items:center;
@@ -72,25 +61,47 @@
       padding:12px 12px;
       border-radius:16px;
       border:1px solid rgba(58,37,24,.10);
-      background: rgba(255,255,255,.55);
-      color: var(--coffee);
-      box-shadow: 0 6px 16px rgba(30,18,12,.06);
-      transition: transform .08s ease, background .12s ease, border-color .12s ease;
+      background:rgba(255,255,255,.55);
+      color:var(--coffee);
+      box-shadow:0 6px 16px rgba(30,18,12,.06);
+      transition:transform .08s ease, background .12s ease, border-color .12s ease;
     }
     .nav-item:hover{
       text-decoration:none;
-      background: rgba(255,255,255,.72);
-      border-color: rgba(58,37,24,.16);
-      transform: translateY(-1px);
+      background:rgba(255,255,255,.72);
+      border-color:rgba(58,37,24,.16);
+      transform:translateY(-1px);
     }
     .nav-item.active{
-      background: linear-gradient(90deg, rgba(200,163,106,.28), rgba(90,58,36,.10));
-      border-color: rgba(200,163,106,.35);
+      background:linear-gradient(90deg, rgba(200,163,106,.28), rgba(90,58,36,.10));
+      border-color:rgba(200,163,106,.35);
     }
 
-    /* Main */
-    .main{padding:18px;display:flex;flex-direction:column;gap:14px}
+    .card{
+      border:1px solid var(--border);
+      border-radius:var(--radius2);
+      background:rgba(255,255,255,.60);
+      box-shadow:var(--shadow2);
+      padding:16px;
+    }
+    .btn{
+      height:40px;
+      padding:0 14px;
+      border-radius:16px;
+      border:1px solid rgba(58,37,24,.14);
+      background:rgba(255,255,255,.65);
+      color:var(--coffee);
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btn:hover{background:rgba(255,255,255,.78)}
+    .btn-primary{
+      border-color:rgba(200,163,106,.55);
+      background:linear-gradient(180deg, rgba(200,163,106,.55), rgba(200,163,106,.28));
+    }
+    .btn-secondary{width:100%}
 
+    .main{padding:18px;display:flex;flex-direction:column;gap:14px}
     .topbar{
       display:flex;
       align-items:center;
@@ -99,71 +110,41 @@
       padding:16px 18px;
       border:1px solid var(--border);
       border-radius:var(--radius2);
-      background: rgba(255,255,255,.55);
-      box-shadow: var(--shadow);
+      background:rgba(255,255,255,.55);
+      box-shadow:var(--shadow);
     }
-
     .page-title{margin:0;font-size:22px;font-weight:900}
     .page-subtitle{margin-top:6px;color:var(--muted);font-size:13px}
-
     .content{display:flex;flex-direction:column;gap:14px}
 
-    /* Cards */
-    .card{
-      border:1px solid var(--border);
-      border-radius:var(--radius2);
-      background: rgba(255,255,255,.60);
-      box-shadow: var(--shadow2);
-      padding:16px;
-    }
-
-    .card-title{margin:0 0 6px 0;font-size:16px;font-weight:900;color:var(--coffee)}
-    .card-sub{margin:0;color:var(--muted);font-size:13px}
-
-    /* Buttons */
-    .btn{
-      height:40px;
-      padding:0 14px;
-      border-radius:16px;
-      border:1px solid rgba(58,37,24,.14);
-      background: rgba(255,255,255,.65);
-      color:var(--coffee);
-      font-weight:900;
-      cursor:pointer;
-      transition: transform .08s ease, background .12s ease, border-color .12s ease;
-    }
-    .btn:hover{
-      background: rgba(255,255,255,.78);
-      border-color: rgba(58,37,24,.20);
-      transform: translateY(-1px);
-    }
-
-    .btn-primary{
-      border-color: rgba(200,163,106,.55);
-      background: linear-gradient(180deg, rgba(200,163,106,.55), rgba(200,163,106,.28));
-    }
-
-    .btn-secondary{width:100%}
-
-    /* Footer hint (professional helper) */
     .hint{
       margin-top:auto;
       border:1px dashed rgba(58,37,24,.22);
-      border-radius: var(--radius2);
+      border-radius:var(--radius2);
       padding:14px 16px;
-      background: rgba(255,255,255,.45);
+      background:rgba(255,255,255,.45);
     }
     .hint-title{font-weight:900;color:var(--coffee);margin-bottom:6px}
-    .hint-meta{display:flex;justify-content:space-between;gap:10px;margin-top:10px}
 
     @media (max-width:980px){
       .app-shell{grid-template-columns:1fr}
       .sidebar{border-right:none;border-bottom:1px solid var(--border)}
+      .topbar{flex-direction:column;align-items:flex-start}
     }
   </style>
 </head>
 
 <body>
+  <% 
+    const _activeNav = (typeof activeNav !== "undefined") ? activeNav : "";
+    const _pageTitle = (typeof pageTitle !== "undefined") ? pageTitle : "";
+    const _pageSubtitle = (typeof pageSubtitle !== "undefined") ? pageSubtitle : "";
+    const _currentUser = (typeof currentUser !== "undefined") ? currentUser : null;
+    const _primaryAction = (typeof primaryAction !== "undefined") ? primaryAction : null;
+    const _hintTitle = (typeof hintTitle !== "undefined") ? hintTitle : null;
+    const _hintLines = (typeof hintLines !== "undefined") ? hintLines : null;
+  %>
+
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -172,20 +153,20 @@
       </div>
 
       <nav class="nav">
-        <a class="nav-item <%= activeNav==='dashboard'?'active':'' %>" href="/dashboard">Dashboard</a>
-        <a class="nav-item <%= activeNav==='orders'?'active':'' %>" href="/orders">Bestellungen</a>
-        <a class="nav-item <%= activeNav==='production'?'active':'' %>" href="/production">Produktion</a>
-        <a class="nav-item <%= activeNav==='inventory'?'active':'' %>" href="/inventory">Lager</a>
-        <a class="nav-item <%= activeNav==='analytics'?'active':'' %>" href="/analytics">Analysen</a>
-        <a class="nav-item <%= activeNav==='settings'?'active':'' %>" href="/settings">Einstellungen</a>
-        <a class="nav-item <%= activeNav==='activity'?'active':'' %>" href="/activity">Aktivität</a>
+        <a class="nav-item <%= _activeNav==='dashboard'?'active':'' %>" href="/dashboard">Dashboard</a>
+        <a class="nav-item <%= _activeNav==='orders'?'active':'' %>" href="/orders">Bestellungen</a>
+        <a class="nav-item <%= _activeNav==='production'?'active':'' %>" href="/production">Produktion</a>
+        <a class="nav-item <%= _activeNav==='inventory'?'active':'' %>" href="/inventory">Lager</a>
+        <a class="nav-item <%= _activeNav==='analytics'?'active':'' %>" href="/analytics">Analysen</a>
+        <a class="nav-item <%= _activeNav==='settings'?'active':'' %>" href="/settings">Einstellungen</a>
+        <a class="nav-item <%= _activeNav==='activity'?'active':'' %>" href="/activity">Aktivität</a>
       </nav>
 
       <div class="card" style="margin-top:14px;">
-        <% if (currentUser) { %>
+        <% if (_currentUser) { %>
           <div class="small-note">Eingeloggt als</div>
-          <div style="font-weight:900;margin-top:2px;"><%= currentUser.name %></div>
-          <div class="small-note" style="margin-top:4px;">Rolle: <%= currentUser.role %></div>
+          <div style="font-weight:900;margin-top:2px;"><%= _currentUser.name %></div>
+          <div class="small-note" style="margin-top:4px;">Rolle: <%= _currentUser.role %></div>
 
           <form method="POST" action="/logout" style="margin-top:12px;">
             <button class="btn btn-secondary" type="submit">Abmelden</button>
@@ -199,12 +180,14 @@
     <main class="main">
       <header class="topbar">
         <div>
-          <h1 class="page-title"><%= pageTitle || "" %></h1>
-          <% if (pageSubtitle) { %><div class="page-subtitle"><%= pageSubtitle %></div><% } %>
+          <h1 class="page-title"><%= _pageTitle %></h1>
+          <% if (_pageSubtitle) { %>
+            <div class="page-subtitle"><%= _pageSubtitle %></div>
+          <% } %>
         </div>
 
-        <% if (primaryAction) { %>
-          <a class="btn btn-primary" href="<%= primaryAction.href %>"><%= primaryAction.label %></a>
+        <% if (_primaryAction && _primaryAction.href && _primaryAction.label) { %>
+          <a class="btn btn-primary" href="<%= _primaryAction.href %>"><%= _primaryAction.label %></a>
         <% } %>
       </header>
 
@@ -212,19 +195,13 @@
         <%- body %>
       </section>
 
-      <% if (hintTitle || hintLines) { %>
+      <% if (_hintTitle || (_hintLines && _hintLines.length)) { %>
         <footer class="hint">
-          <div class="hint-title"><%= hintTitle || "Hinweis" %></div>
-          <% if (hintLines && hintLines.length) { %>
-            <% for (var i=0; i<hintLines.length; i++) { %>
-              <div class="small-note"><%= hintLines[i] %></div>
+          <div class="hint-title"><%= _hintTitle || "Hinweis" %></div>
+          <% if (_hintLines && _hintLines.length) { %>
+            <% for (let i=0; i<_hintLines.length; i++) { %>
+              <div class="small-note"><%= _hintLines[i] %></div>
             <% } %>
-          <% } %>
-          <% if (hintMeta) { %>
-            <div class="hint-meta">
-              <span class="small-note"><%= hintMeta.left || "" %></span>
-              <span class="small-note"><%= hintMeta.right || "" %></span>
-            </div>
           <% } %>
         </footer>
       <% } %>
