@@ -1,190 +1,165 @@
 <%
   var safeDemand = (typeof roastDemand !== "undefined" && roastDemand) ? roastDemand : [];
   var safeInventory = (typeof inventory !== "undefined" && inventory) ? inventory : null;
+  var safeBatches = (typeof batches !== "undefined" && batches) ? batches : [];
 
   function getGreen(coffeeId){
-    if (!safeInventory) return 0;
-    if (!safeInventory.greenBeansKg) return 0;
+    if (!safeInventory || !safeInventory.greenBeansKg) return 0;
     var v = safeInventory.greenBeansKg[coffeeId];
     if (v === undefined || v === null) return 0;
     return v;
   }
 
   function getRoasted(coffeeId){
-    if (!safeInventory) return 0;
-    if (!safeInventory.roastedKg) return 0;
+    if (!safeInventory || !safeInventory.roastedKg) return 0;
     var v = safeInventory.roastedKg[coffeeId];
     if (v === undefined || v === null) return 0;
     return v;
   }
 
-  function riskBadge(needFromGreen, green){
-    if (needFromGreen <= 0) return "badge ok";
-    if (green >= needFromGreen) return "badge ok";
-    if (green > 0 && green < needFromGreen) return "badge warn";
-    return "badge danger";
+  function badgeRisk(needFromGreen, green){
+    if (needFromGreen <= 0) return { cls:"badge ok", txt:"Puffer vorhanden" };
+    if (green >= needFromGreen) return { cls:"badge ok", txt:"Rohkaffee ausreichend" };
+    if (green > 0 && green < needFromGreen) return { cls:"badge warn", txt:"Rohkaffee knapp" };
+    return { cls:"badge danger", txt:"Rohkaffee fehlt" };
   }
 
-  function riskText(needFromGreen, green){
-    if (needFromGreen <= 0) return "Puffer vorhanden";
-    if (green >= needFromGreen) return "Rohkaffee ausreichend";
-    if (green > 0 && green < needFromGreen) return "Rohkaffee knapp";
-    return "Rohkaffee fehlt";
-  }
-
-  // Simple batch suggestion UI (placeholder numbers)
-  function suggestBatches(totalKg){
-    // UI-only: we show a plausible split without enforcing roaster specs.
-    // Later we replace with real roaster capacity rules.
-    if (totalKg <= 0) return [];
-    var batches = [];
-    var remaining = totalKg;
-
-    var sizes = [15, 12, 10, 8, 5]; // UI default
-    for (var i=0; i<sizes.length; i++){
-      while (remaining >= sizes[i] && batches.length < 6){
-        batches.push(sizes[i]);
-        remaining = Math.round((remaining - sizes[i]) * 10) / 10;
-      }
-    }
-    if (remaining > 0 && batches.length < 6) batches.push(remaining);
-    return batches;
+  function batchBadge(status){
+    if (status === "GEPLANT") return { cls:"badge warn", txt:"Geplant" };
+    if (status === "GEROESTET") return { cls:"badge ok", txt:"Geröstet" };
+    if (status === "ABGEKUEHLT") return { cls:"badge", txt:"Abgekühlt" };
+    if (status === "VERPACKT") return { cls:"badge ok", txt:"Verpackt" };
+    if (status === "BEREIT") return { cls:"badge", txt:"Bereit" };
+    if (status === "AUSGELIEFERT") return { cls:"badge", txt:"Ausgeliefert" };
+    return { cls:"badge", txt: status || "-" };
   }
 %>
 
 <div class="card-grid">
   <div class="card">
-    <h2>Produktionsplanung</h2>
-    <p>Hier entsteht die zentrale Übersicht: Bedarf pro Sorte, Verfügbarkeit im Lager und Batch-Vorschläge.</p>
+    <h2>Produktion</h2>
+    <p>Bedarf aus freigegebenen Bestellungen, Abgleich mit Lager, danach Chargen planen und verfolgen.</p>
   </div>
 
   <div class="card">
-    <h2>Prinzip</h2>
-    <p>Nur freigegebene Bestellungen zählen als Bedarf. Produktion wandelt Rohkaffee in Röstkaffee um.</p>
-  </div>
-
-  <div class="card">
-    <h2>Heute Fokus</h2>
-    <p>Platzhalter: Fällige Lieferungen und Engpässe werden hier automatisch priorisiert.</p>
+    <h2>Regel</h2>
+    <p>Wenn eine Charge auf “Geröstet” geht, wird Rohkaffee reduziert und Röstkaffee erhöht (gleiche kg).</p>
   </div>
 
   <div class="card">
     <h2>Schnellaktionen</h2>
-    <p>Wechseln Sie direkt zu den Bereichen, die die Planung beeinflussen.</p>
+    <p>Alles hängt zusammen. Nutzen Sie diese Sprünge für den Alltag.</p>
     <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-      <a class="btn btn-primary" href="/orders">Bestellungen</a>
+      <a class="btn btn-secondary" href="/orders">Bestellungen</a>
       <a class="btn btn-secondary" href="/inventory">Lager</a>
       <a class="btn btn-ghost" href="/analytics">Analysen</a>
     </div>
   </div>
-</div>
 
-<div style="margin-top:14px;" class="filterbar">
-  <div class="filter-left">
-    <input class="input" placeholder="Suche Sorte" />
-    <select class="select">
-      <option>Zeitraum: Aktuell</option>
-      <option>Diese Woche</option>
-      <option>Nächste Woche</option>
-    </select>
-    <select class="select">
-      <option>Ansicht: Bedarf</option>
-      <option>Ansicht: Chargen</option>
-    </select>
-  </div>
-
-  <div class="filter-right">
-    <span class="small-note">Filter UI ist aktiv, Logik folgt nach UI-Finish.</span>
-    <button class="btn btn-primary" type="button">Batch Plan</button>
-    <button class="btn btn-secondary" type="button">Export</button>
+  <div class="card">
+    <h2>Hinweis</h2>
+    <p>In diesem Schritt speichern wir Chargen in Memory. Danach folgt DB und echtes Protokoll.</p>
   </div>
 </div>
 
-<div class="table-wrap">
+<div style="margin-top:14px;" class="table-wrap">
   <div class="table-head">
     <div>Sorte</div>
     <div>Bedarf kg</div>
     <div>Röstkaffee kg</div>
     <div>Rohkaffee kg</div>
     <div>Status</div>
-    <div>Aktionen</div>
+    <div>Batch</div>
   </div>
 
   <% if (!safeDemand.length) { %>
     <div class="table-row">
-      <div>Keine Daten</div>
+      <div>Kein Bedarf</div>
       <div>-</div>
       <div>-</div>
       <div>-</div>
       <div><span class="badge"><span class="dot"></span>Warten auf Freigaben</span></div>
       <div class="row-actions">
         <a class="btn btn-primary" href="/orders">Zu Bestellungen</a>
-        <a class="btn btn-secondary" href="/inventory">Lager prüfen</a>
       </div>
     </div>
   <% } %>
 
-  <% for (var i = 0; i < safeDemand.length; i++) {
+  <% for (var i=0; i<safeDemand.length; i++) {
       var r = safeDemand[i];
       var green = getGreen(r.coffeeId);
       var roasted = getRoasted(r.coffeeId);
+
       var needFromGreen = r.kg - roasted;
       if (needFromGreen < 0) needFromGreen = 0;
 
-      var badge = riskBadge(needFromGreen, green);
-      var txt = riskText(needFromGreen, green);
+      var risk = badgeRisk(needFromGreen, green);
   %>
     <div class="table-row">
       <div><strong><%= r.coffeeName %></strong></div>
       <div><%= r.kg %></div>
       <div><%= roasted %></div>
       <div><%= green %></div>
-      <div><span class="<%= badge %>"><span class="dot"></span><%= txt %></span></div>
+      <div><span class="<%= risk.cls %>"><span class="dot"></span><%= risk.txt %></span></div>
       <div class="row-actions">
-        <button class="btn btn-primary" type="button">Charge planen</button>
-        <button class="btn btn-secondary" type="button">Markieren</button>
-        <button class="btn btn-ghost" type="button">Details</button>
+        <form method="POST" action="/actions/batches/create" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <input type="hidden" name="coffeeId" value="<%= r.coffeeId %>" />
+          <input class="input" name="kg" style="width:140px;" placeholder="kg (z.B. 12)" />
+          <input class="input" name="note" style="width:220px;" placeholder="Notiz (optional)" />
+          <button class="btn btn-primary" type="submit">Charge anlegen</button>
+        </form>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<div style="margin-top:14px;" class="table-wrap">
+  <div class="table-head" style="grid-template-columns: 120px 1fr 140px 170px 1fr 280px;">
+    <div>ID</div>
+    <div>Sorte</div>
+    <div>kg</div>
+    <div>Status</div>
+    <div>Notiz</div>
+    <div>Aktionen</div>
+  </div>
+
+  <% if (!safeBatches.length) { %>
+    <div class="table-row" style="grid-template-columns: 120px 1fr 140px 170px 1fr 280px;">
+      <div class="mono">-</div>
+      <div>Keine Chargen</div>
+      <div>-</div>
+      <div><span class="badge"><span class="dot"></span>Info</span></div>
+      <div>-</div>
+      <div class="row-actions">
+        <span class="small-note">Erstellen Sie oben eine Charge aus dem Bedarf.</span>
+      </div>
+    </div>
+  <% } %>
+
+  <% for (var b=0; b<safeBatches.length; b++) {
+      var x = safeBatches[b];
+      var bb = batchBadge(x.status);
+      var sid = (x.id && x.id.length >= 8) ? x.id.slice(0,8) : (x.id || "-");
+  %>
+    <div class="table-row" style="grid-template-columns: 120px 1fr 140px 170px 1fr 280px;">
+      <div class="mono"><%= sid %></div>
+      <div><strong><%= x.coffeeName %></strong></div>
+      <div><%= x.kg %></div>
+      <div><span class="<%= bb.cls %>"><span class="dot"></span><%= bb.txt %></span></div>
+      <div class="small-note"><%= x.note ? x.note : "-" %></div>
+      <div class="row-actions">
+        <form method="POST" action="/actions/batches/<%= x.id %>/advance">
+          <button class="btn btn-primary" type="submit">Status weiter</button>
+        </form>
+        <form method="POST" action="/actions/batches/<%= x.id %>/delete" onsubmit="return confirm('Charge wirklich löschen?');">
+          <button class="btn btn-danger" type="submit">Löschen</button>
+        </form>
       </div>
     </div>
   <% } %>
 </div>
 
 <div style="margin-top:14px;" class="card card-wide">
-  <h2>Batch Vorschläge</h2>
-  <p>Diese Vorschläge sind UI-Platzhalter. Im nächsten Schritt definieren wir echte Batch-Regeln basierend auf Ihrem Röster.</p>
-
-  <div style="margin-top:12px;" class="card-grid">
-    <% if (!safeDemand.length) { %>
-      <div class="card">
-        <h2>Keine Batches</h2>
-        <p>Erst wenn Bestellungen freigegeben werden, entsteht ein Bedarf und damit ein Batch Plan.</p>
-      </div>
-    <% } %>
-
-    <% for (var i = 0; i < safeDemand.length; i++) {
-        var r = safeDemand[i];
-        var batches = suggestBatches(r.kg);
-    %>
-      <div class="card">
-        <h2><%= r.coffeeName %></h2>
-        <p>Bedarf: <strong><%= r.kg %> kg</strong></p>
-
-        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-          <% for (var b = 0; b < batches.length; b++) { %>
-            <span class="badge"><span class="dot"></span><%= batches[b] %> kg</span>
-          <% } %>
-        </div>
-
-        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-          <button class="btn btn-primary" type="button">Als Charge übernehmen</button>
-          <button class="btn btn-secondary" type="button">Anpassen</button>
-        </div>
-      </div>
-    <% } %>
-  </div>
-</div>
-
-<div style="margin-top:14px;" class="card card-wide">
-  <h2>Prozess Erklärung</h2>
-  <p>Die Produktion ist bewusst in zwei Ebenen aufgebaut: oben die Fakten (Bedarf und Lager), unten die Planung (Batches). Dadurch bleibt die Seite ruhig, auch auf Tablets.</p>
+  <h2>Was passiert automatisch?</h2>
+  <p>Wenn Sie den Batch-Status auf “Geröstet” setzen, wird der Rohkaffee reduziert und der Röstkaffee erhöht. Das ist die Grundlage für eine echte Lagerlogik.</p>
 </div>
