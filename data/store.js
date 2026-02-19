@@ -1,9 +1,6 @@
 // data/store.js
 const { randomUUID } = require("crypto");
-
-function nowISO() {
-  return new Date().toISOString();
-}
+const db = require("../db");
 
 const ORDER_STATUS = [
   "ENTWURF",
@@ -23,252 +20,276 @@ const BATCH_STATUS = [
   "AUSGELIEFERT"
 ];
 
-const SHOPS = [
-  { id: "city", name: "Bunca City" },
-  { id: "berger", name: "Bunca Berger Straße" },
-  { id: "grueneburgweg", name: "Bunca Grüneburgweg" }
-];
+// These are now read from DB, but keep exported for UI expectations.
+let COFFEES = [];
+let SHOPS = [];
 
-const COFFEES = [
-  { id: "bombora", name: "Bombora", packDefaultKg: 1 },
-  { id: "fiver", name: "Fiver", packDefaultKg: 1 },
-  { id: "ethiopia", name: "Ethiopia", packDefaultKg: 1 },
-  { id: "brazil", name: "Brazil", packDefaultKg: 1 }
-];
+async function refreshMasters() {
+  const coffees = await db.query(`SELECT id, name, pack_default_kg FROM coffees ORDER BY name ASC`);
+  COFFEES = coffees.rows.map(r => ({ id: r.id, name: r.name, packDefaultKg: Number(r.pack_default_kg || 1) }));
 
-let orders = [
-  {
-    id: randomUUID(),
-    channel: "FILIALE",
-    customerName: null,
-    shopId: "city",
-    deliveryDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
-    status: "EINGEGANGEN",
-    createdAt: nowISO(),
-    items: [
-      { coffeeId: "bombora", coffeeName: "Bombora", kg: 8 },
-      { coffeeId: "fiver", coffeeName: "Fiver", kg: 5 }
-    ],
-    note: "Bitte bis mittags liefern."
-  },
-  {
-    id: randomUUID(),
-    channel: "B2B",
-    customerName: "Kunde Muster GmbH",
-    shopId: null,
-    deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10),
-    status: "FREIGEGEBEN",
-    createdAt: nowISO(),
-    items: [{ coffeeId: "bombora", coffeeName: "Bombora", kg: 22 }],
-    note: "22kg als 2x 11kg."
+  const shops = await db.query(`SELECT id, name FROM shops ORDER BY name ASC`);
+  SHOPS = shops.rows.map(r => ({ id: r.id, name: r.name }));
+}
+
+async function log(action, meta) {
+  await db.query(
+    `INSERT INTO activity (id, action, meta) VALUES ($1, $2, $3::jsonb)`,
+    [randomUUID(), action, JSON.stringify(meta || {})]
+  );
+}
+
+async function listOrders() {
+  const res = await db.query(`
+    SELECT o.*
+    FROM orders o
+    ORDER BY o.created_at DESC
+  `);
+
+  const rows = res.rows;
+  if (!rows.length) return [];
+
+  const ids = rows.map(r => r.id);
+  const itemsRes = await db.query(
+    `SELECT order_id, coffee_id, coffee_name, kg
+     FROM order_items
+     WHERE order_id = ANY($1::uuid[])
+     ORDER BY coffee_name ASC`,
+    [ids]
+  );
+
+  const itemsByOrder = {};
+  for (const it of itemsRes.rows) {
+    if (!itemsByOrder[it.order_id]) itemsByOrder[it.order_id] = [];
+    itemsByOrder[it.order_id].push({
+      coffeeId: it.coffee_id,
+      coffeeName: it.coffee_name,
+      kg: Number(it.kg)
+    });
   }
-];
 
-let inventory = {
-  greenBeansKg: {
-    bombora: 120,
-    fiver: 80,
-    ethiopia: 60,
-    brazil: 90
-  },
-  roastedKg: {
-    bombora: 18,
-    fiver: 10,
-    ethiopia: 7,
-    brazil: 12
-  },
-  packagingUnits: {
-    bag_250g: 1200,
-    bag_1kg: 500,
-    bag_11kg: 60
-  },
-  updatedAt: nowISO()
-};
-
-// NEW: Batches
-let batches = [
-  {
-    id: randomUUID(),
-    coffeeId: "bombora",
-    coffeeName: "Bombora",
-    kg: 12,
-    status: "GEPLANT",
-    createdAt: nowISO(),
-    note: "Startcharge"
-  }
-];
-
-// NEW: Activity log (audit)
-let activity = [];
-
-function log(action, meta) {
-  activity.unshift({
-    id: randomUUID(),
-    at: nowISO(),
-    action,
-    meta: meta || {}
-  });
-  if (activity.length > 250) activity = activity.slice(0, 250);
+  return rows.map(o => ({
+    id: o.id,
+    channel: o.channel,
+    shopId: o.shop_id,
+    customerName: o.customer_name,
+    deliveryDate: String(o.delivery_date).slice(0, 10),
+    status: o.status,
+    note: o.note || "",
+    createdAt: o.created_at.toISOString(),
+    items: itemsByOrder[o.id] || [],
+    shopName: null
+  }));
 }
 
-function listOrders() {
-  return orders.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-}
+async function getOrderById(id) {
+  const res = await db.query(`SELECT * FROM orders WHERE id = $1`, [id]);
+  if (!res.rows.length) return null;
 
-function getOrderById(id) {
-  return orders.find(o => o.id === id) || null;
-}
+  const o = res.rows[0];
+  const itemsRes = await db.query(
+    `SELECT coffee_id, coffee_name, kg FROM order_items WHERE order_id = $1 ORDER BY coffee_name ASC`,
+    [id]
+  );
 
-function createOrder(payload) {
-  const id = randomUUID();
-  const order = {
-    id,
-    channel: payload.channel,
-    customerName: payload.customerName || null,
-    shopId: payload.shopId || null,
-    deliveryDate: payload.deliveryDate,
-    status: payload.status || "EINGEGANGEN",
-    createdAt: nowISO(),
-    items: payload.items || [],
-    note: payload.note || ""
+  return {
+    id: o.id,
+    channel: o.channel,
+    shopId: o.shop_id,
+    customerName: o.customer_name,
+    deliveryDate: String(o.delivery_date).slice(0, 10),
+    status: o.status,
+    note: o.note || "",
+    createdAt: o.created_at.toISOString(),
+    items: itemsRes.rows.map(x => ({ coffeeId: x.coffee_id, coffeeName: x.coffee_name, kg: Number(x.kg) }))
   };
-  orders.push(order);
-  log("ORDER_CREATE", { orderId: id, channel: order.channel, deliveryDate: order.deliveryDate });
-  return order;
 }
 
-function setOrderStatus(id, nextStatus) {
-  const order = getOrderById(id);
-  if (!order) return null;
-  const prev = order.status;
-  order.status = nextStatus;
-  log("ORDER_STATUS", { orderId: id, from: prev, to: nextStatus });
-  return order;
+async function createOrder(payload) {
+  const id = randomUUID();
+
+  await db.query(
+    `INSERT INTO orders (id, channel, shop_id, customer_name, delivery_date, status, note)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      id,
+      payload.channel,
+      payload.shopId || null,
+      payload.customerName || null,
+      payload.deliveryDate,
+      payload.status || "EINGEGANGEN",
+      payload.note || ""
+    ]
+  );
+
+  for (const it of (payload.items || [])) {
+    await db.query(
+      `INSERT INTO order_items (id, order_id, coffee_id, coffee_name, kg)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [randomUUID(), id, it.coffeeId, it.coffeeName, it.kg]
+    );
+  }
+
+  await log("ORDER_CREATE", { orderId: id, channel: payload.channel, deliveryDate: payload.deliveryDate });
+  return id;
 }
 
-function deleteOrder(id) {
-  const before = orders.length;
-  orders = orders.filter(o => o.id !== id);
-  const changed = orders.length !== before;
-  if (changed) log("ORDER_DELETE", { orderId: id });
-  return changed;
+async function setOrderStatus(id, nextStatus) {
+  const before = await getOrderById(id);
+  if (!before) return null;
+
+  await db.query(`UPDATE orders SET status = $1 WHERE id = $2`, [nextStatus, id]);
+  await log("ORDER_STATUS", { orderId: id, from: before.status, to: nextStatus });
+  return true;
 }
 
-function getInventory() {
-  return inventory;
+async function deleteOrder(id) {
+  const res = await db.query(`DELETE FROM orders WHERE id = $1`, [id]);
+  if (res.rowCount) await log("ORDER_DELETE", { orderId: id });
+  return !!res.rowCount;
 }
 
-function applyInventoryChange(change) {
+async function getInventory() {
+  const invRes = await db.query(`
+    SELECT i.coffee_id, i.green_kg, i.roasted_kg
+    FROM inventory i
+    ORDER BY i.coffee_id ASC
+  `);
+
+  const greenBeansKg = {};
+  const roastedKg = {};
+
+  for (const r of invRes.rows) {
+    greenBeansKg[r.coffee_id] = Number(r.green_kg);
+    roastedKg[r.coffee_id] = Number(r.roasted_kg);
+  }
+
+  // Use last activity time as updatedAt proxy
+  const upd = await db.query(`SELECT at FROM activity ORDER BY at DESC LIMIT 1`);
+  const updatedAt = upd.rows.length ? upd.rows[0].at.toISOString() : new Date().toISOString();
+
+  return { greenBeansKg, roastedKg, packagingUnits: {}, updatedAt };
+}
+
+async function applyInventoryChange(change) {
   const type = change.type;
   const coffeeId = change.coffeeId;
-  const deltaKg = change.deltaKg;
+  const deltaKg = Number(change.deltaKg);
 
-  if (!coffeeId) return false;
-  if (typeof deltaKg !== "number" || !isFinite(deltaKg)) return false;
+  if (!coffeeId || !Number.isFinite(deltaKg)) return false;
 
   if (type === "GREEN") {
-    const current = inventory.greenBeansKg[coffeeId] || 0;
-    inventory.greenBeansKg[coffeeId] = Math.max(0, current + deltaKg);
+    await db.query(
+      `UPDATE inventory SET green_kg = GREATEST(0, green_kg + $1) WHERE coffee_id = $2`,
+      [deltaKg, coffeeId]
+    );
   } else if (type === "ROASTED") {
-    const current = inventory.roastedKg[coffeeId] || 0;
-    inventory.roastedKg[coffeeId] = Math.max(0, current + deltaKg);
+    await db.query(
+      `UPDATE inventory SET roasted_kg = GREATEST(0, roasted_kg + $1) WHERE coffee_id = $2`,
+      [deltaKg, coffeeId]
+    );
   } else {
     return false;
   }
 
-  inventory.updatedAt = nowISO();
-  log("INVENTORY_CHANGE", { type, coffeeId, deltaKg, note: change.note || "" });
+  await log("INVENTORY_CHANGE", { type, coffeeId, deltaKg, note: change.note || "" });
   return true;
 }
 
-// Demand from orders (freigegeben/produktion/verpackt)
-function computeRoastDemand() {
-  const eligible = { FREIGEGEBEN: true, IN_PRODUKTION: true, VERPACKT: true };
-  const totals = {};
+async function computeRoastDemand() {
+  const eligible = ["FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT"];
 
-  for (const o of orders) {
-    if (!eligible[o.status]) continue;
-    for (const it of (o.items || [])) {
-      const kg = Number(it.kg) || 0;
-      totals[it.coffeeId] = (totals[it.coffeeId] || 0) + kg;
-    }
-  }
+  const res = await db.query(
+    `
+    SELECT oi.coffee_id, oi.coffee_name, SUM(oi.kg)::numeric AS kg
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    WHERE o.status = ANY($1::text[])
+    GROUP BY oi.coffee_id, oi.coffee_name
+    ORDER BY SUM(oi.kg) DESC
+    `,
+    [eligible]
+  );
 
-  const result = [];
-  for (const coffeeId of Object.keys(totals)) {
-    const coffee = COFFEES.find(c => c.id === coffeeId);
-    result.push({ coffeeId, coffeeName: coffee ? coffee.name : coffeeId, kg: totals[coffeeId] });
-  }
-
-  result.sort((a, b) => b.kg - a.kg);
-  return result;
+  return res.rows.map(r => ({
+    coffeeId: r.coffee_id,
+    coffeeName: r.coffee_name,
+    kg: Number(r.kg)
+  }));
 }
 
-// NEW: batches
-function listBatches() {
-  return batches.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+async function listBatches() {
+  const res = await db.query(`SELECT * FROM batches ORDER BY created_at DESC`);
+  return res.rows.map(b => ({
+    id: b.id,
+    coffeeId: b.coffee_id,
+    coffeeName: b.coffee_name,
+    kg: Number(b.kg),
+    status: b.status,
+    note: b.note || "",
+    createdAt: b.created_at.toISOString()
+  }));
 }
 
-function getBatchById(id) {
-  return batches.find(b => b.id === id) || null;
-}
-
-function createBatch(payload) {
+async function createBatch(payload) {
   const id = randomUUID();
-  const batch = {
-    id,
-    coffeeId: payload.coffeeId,
-    coffeeName: payload.coffeeName,
-    kg: payload.kg,
-    status: payload.status || "GEPLANT",
-    createdAt: nowISO(),
-    note: payload.note || ""
-  };
-  batches.push(batch);
-  log("BATCH_CREATE", { batchId: id, coffeeId: batch.coffeeId, kg: batch.kg });
-  return batch;
+  await db.query(
+    `INSERT INTO batches (id, coffee_id, coffee_name, kg, status, note)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [id, payload.coffeeId, payload.coffeeName, payload.kg, payload.status || "GEPLANT", payload.note || ""]
+  );
+  await log("BATCH_CREATE", { batchId: id, coffeeId: payload.coffeeId, kg: payload.kg });
+  return id;
 }
 
-function advanceBatch(id) {
-  const batch = getBatchById(id);
-  if (!batch) return null;
+async function advanceBatch(id) {
+  const res = await db.query(`SELECT * FROM batches WHERE id = $1`, [id]);
+  if (!res.rows.length) return null;
 
+  const batch = res.rows[0];
   const idx = BATCH_STATUS.indexOf(batch.status);
-  if (idx >= 0 && idx < BATCH_STATUS.length - 1) {
-    const prev = batch.status;
-    batch.status = BATCH_STATUS[idx + 1];
-    log("BATCH_STATUS", { batchId: id, from: prev, to: batch.status });
+  if (idx < 0 || idx >= BATCH_STATUS.length - 1) return true;
 
-    // Simple stock movement rules (can refine later):
-    // When batch becomes GEROESTET -> consume green, add roasted (same kg).
-    if (batch.status === "GEROESTET") {
-      inventory.greenBeansKg[batch.coffeeId] = Math.max(0, (inventory.greenBeansKg[batch.coffeeId] || 0) - batch.kg);
-      inventory.roastedKg[batch.coffeeId] = Math.max(0, (inventory.roastedKg[batch.coffeeId] || 0) + batch.kg);
-      inventory.updatedAt = nowISO();
-      log("INVENTORY_MOVE", { from: "GREEN", to: "ROASTED", coffeeId: batch.coffeeId, kg: batch.kg, batchId: id });
-    }
+  const next = BATCH_STATUS[idx + 1];
+  await db.query(`UPDATE batches SET status = $1 WHERE id = $2`, [next, id]);
+  await log("BATCH_STATUS", { batchId: id, from: batch.status, to: next });
+
+  // Stock movement when status becomes GEROESTET
+  if (next === "GEROESTET") {
+    await db.query(
+      `UPDATE inventory SET green_kg = GREATEST(0, green_kg - $1), roasted_kg = GREATEST(0, roasted_kg + $1)
+       WHERE coffee_id = $2`,
+      [Number(batch.kg), batch.coffee_id]
+    );
+    await log("INVENTORY_MOVE", { from: "GREEN", to: "ROASTED", coffeeId: batch.coffee_id, kg: Number(batch.kg), batchId: id });
   }
 
-  return batch;
+  return true;
 }
 
-function deleteBatch(id) {
-  const before = batches.length;
-  batches = batches.filter(b => b.id !== id);
-  const changed = batches.length !== before;
-  if (changed) log("BATCH_DELETE", { batchId: id });
-  return changed;
+async function deleteBatch(id) {
+  const del = await db.query(`DELETE FROM batches WHERE id = $1`, [id]);
+  if (del.rowCount) await log("BATCH_DELETE", { batchId: id });
+  return !!del.rowCount;
 }
 
-function listActivity() {
-  return activity.slice(0, 250);
+async function listActivity() {
+  const res = await db.query(`SELECT * FROM activity ORDER BY at DESC LIMIT 250`);
+  return res.rows.map(a => ({
+    id: a.id,
+    at: a.at.toISOString(),
+    action: a.action,
+    meta: a.meta
+  }));
 }
 
 module.exports = {
   ORDER_STATUS,
   BATCH_STATUS,
-  SHOPS,
-  COFFEES,
+  get COFFEES() { return COFFEES; },
+  get SHOPS() { return SHOPS; },
+
+  refreshMasters,
 
   listOrders,
   getOrderById,
@@ -282,7 +303,6 @@ module.exports = {
   computeRoastDemand,
 
   listBatches,
-  getBatchById,
   createBatch,
   advanceBatch,
   deleteBatch,
