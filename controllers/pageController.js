@@ -12,23 +12,23 @@ function base(activeNav, title, subtitle) {
   };
 }
 
-exports.renderHome = (req, res) => {
+exports.renderHome = async (req, res) => {
   res.render("home", Object.assign(base("dashboard", "Start", "Schneller Einstieg"), {
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Starten Sie bei Bestellungen. Freigaben erzeugen Produktionsbedarf.",
-      "Lager ist der Sicherheitsgurt: Bestände regelmäßig pflegen."
+      "Lager regelmäßig pflegen, damit Auslieferungen funktionieren."
     ],
-    hintMeta: { left: "Workflow", right: "Status: Live" }
+    hintMeta: { left: "Workflow", right: "DB: aktiv" }
   }));
 };
 
-exports.renderDashboard = (req, res) => {
-  const orders = store.listOrders();
-  const inv = store.getInventory();
-  const demand = store.computeRoastDemand();
-  const batches = store.listBatches();
-  const activity = store.listActivity();
+exports.renderDashboard = async (req, res) => {
+  const orders = await store.listOrders();
+  const inv = await store.getInventory();
+  const demand = await store.computeRoastDemand();
+  const batches = await store.listBatches();
+  const activity = await store.listActivity();
 
   res.render("dashboard", Object.assign(base("dashboard", "Dashboard", "Übersicht und Schnellaktionen"), {
     ordersCount: orders.length,
@@ -38,32 +38,33 @@ exports.renderDashboard = (req, res) => {
     inventoryUpdatedAt: inv.updatedAt,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Wenn etwas dringend ist: zuerst Bestellungen, dann Produktion, dann Lager.",
-      "Aktivität zeigt, was wann passiert ist."
+      "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
+      "Wenn etwas komisch ist: Aktivität zeigt jede Änderung."
     ],
-    hintMeta: { left: "Aktuell Dummy-Store", right: "Nächster Schritt: DB" }
+    hintMeta: { left: "Persistente Daten", right: "Letztes Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
   }));
 };
 
-exports.renderOrders = (req, res) => {
-  const orders = store.listOrders();
+exports.renderOrders = async (req, res) => {
+  const orders = await store.listOrders();
+
   res.render("orders", Object.assign(base("orders", "Bestellungen", "Filiale und B2B Bestellungen verwalten"), {
     orders,
     shops: store.SHOPS,
     coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "EINGEGANGEN bedeutet: prüfen. FREIGEGEBEN bedeutet: zählt für Produktion.",
-      "Weiter bewegt die Bestellung Schritt für Schritt durch den Workflow."
+      "Mindestens 1 Position pro Bestellung.",
+      "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab."
     ],
-    hintMeta: { left: "Regel: erst prüfen, dann freigeben", right: "Status aktiv" }
+    hintMeta: { left: "DB aktiv", right: "Bestellungen: " + orders.length }
   }));
 };
 
-exports.renderProduction = (req, res) => {
-  const inv = store.getInventory();
-  const roastDemand = store.computeRoastDemand();
-  const batches = store.listBatches();
+exports.renderProduction = async (req, res) => {
+  const inv = await store.getInventory();
+  const roastDemand = await store.computeRoastDemand();
+  const batches = await store.listBatches();
 
   res.render("production", Object.assign(base("production", "Produktion", "Bedarf, Lagerabgleich und Chargen"), {
     inventory: inv,
@@ -71,61 +72,61 @@ exports.renderProduction = (req, res) => {
     batches,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Bedarf basiert auf FREIGEGEBEN, IN_PRODUKTION und VERPACKT.",
-      "Wenn eine Charge “Geröstet” wird, bewegen sich Bestände automatisch."
+      "Charge ‘Geröstet’ bewegt Rohkaffee → Röstkaffee.",
+      "Charge ‘Ausgeliefert’ reduziert Röstkaffee."
     ],
-    hintMeta: { left: "Plan zuerst, dann rösten", right: "Letztes Lagerupdate: " + String(inv.updatedAt).slice(0, 10) }
+    hintMeta: { left: "DB aktiv", right: "Chargen: " + batches.length }
   }));
 };
 
-exports.renderInventory = (req, res) => {
-  const inv = store.getInventory();
+exports.renderInventory = async (req, res) => {
+  const inv = await store.getInventory();
+
   res.render("inventory", Object.assign(base("inventory", "Lager", "Bestände verwalten und Engpässe vermeiden"), {
     inventory: inv,
     coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Pflegen Sie Bestände nach Lieferung, Produktion und Auslieferung.",
+      "Rohkaffee = grün. Röstkaffee = fertig zum Verpacken/Ausliefern.",
       "Jede Änderung wird in Aktivität protokolliert."
     ],
-    hintMeta: { left: "Ziel: keine Engpässe", right: "Letzte Änderung: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
+    hintMeta: { left: "DB aktiv", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
   }));
 };
 
-exports.renderAnalytics = (req, res) => {
+exports.renderAnalytics = async (req, res) => {
   res.render("analytics", Object.assign(base("analytics", "Analysen", "KPIs und Berichte"), {
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Analysen zeigen nur das, was Entscheidungen erleichtert.",
-      "Charts kommen, sobald Daten stabil sind."
+      "Analysen kommen als nächstes: Bedarf, Engpässe, Auslieferungen.",
+      "Jetzt stabilisieren wir erst den Workflow."
     ],
-    hintMeta: { left: "UI fertig", right: "Logik folgt" }
+    hintMeta: { left: "DB aktiv", right: "Nächster Schritt: Filter" }
   }));
 };
 
-exports.renderSettings = (req, res) => {
+exports.renderSettings = async (req, res) => {
   res.render("settings", Object.assign(base("settings", "Einstellungen", "Stammdaten und Regeln"), {
     coffees: store.COFFEES,
     shops: store.SHOPS,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Hier werden später Sorten, Filialen und Mindestbestände wirklich gespeichert.",
-      "Nach DB-Migration wird das live editierbar."
+      "Stammdaten kommen als DB-Editor als nächstes.",
+      "Aktuell sind Sorten/Filialen per Seed gesetzt."
     ],
-    hintMeta: { left: "Admin Bereich", right: "Status: UI ready" }
+    hintMeta: { left: "Admin", right: "DB aktiv" }
   }));
 };
 
-// NEW
-exports.renderActivity = (req, res) => {
-  const activity = store.listActivity();
+exports.renderActivity = async (req, res) => {
+  const activity = await store.listActivity();
   res.render("activity", Object.assign(base("activity", "Aktivität", "Protokoll aller Aktionen"), {
     activity,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Aktivität ist Ihr Audit Log: wer hat was geändert und wann.",
-      "Später: Filter nach Benutzer, Bereich, Zeitraum und Export."
+      "Audit Log: jede Aktion mit Zeit und Details.",
+      "Das ist die Fehler-Superkraft des Systems."
     ],
-    hintMeta: { left: "Audit Log", right: "Einträge: " + activity.length }
+    hintMeta: { left: "Audit", right: "Einträge: " + activity.length }
   }));
 };
