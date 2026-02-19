@@ -1,12 +1,17 @@
 <%
   var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
 
-  function statusBadge(status){
-    var cls = "badge";
-    if (status === "FREIGEGEBEN" || status === "VERPACKT") cls = "badge ok";
-    if (status === "EINGEGANGEN" || status === "IN_PRODUKTION") cls = "badge warn";
-    if (status === "STORNIERT") cls = "badge danger";
-    return cls;
+  function statusInfo(status){
+    var map = {
+      "ENTWURF": { cls: "badge", label: "Entwurf" },
+      "EINGEGANGEN": { cls: "badge warn", label: "Eingegangen" },
+      "FREIGEGEBEN": { cls: "badge ok", label: "Freigegeben" },
+      "IN_PRODUKTION": { cls: "badge warn", label: "In Produktion" },
+      "VERPACKT": { cls: "badge ok", label: "Verpackt" },
+      "AUSGELIEFERT": { cls: "badge", label: "Ausgeliefert" }
+    };
+    if (!status || !map[status]) return { cls: "badge", label: "-" };
+    return map[status];
   }
 
   function channelLabel(o){
@@ -21,17 +26,22 @@
     if (o.shopId) return o.shopId;
     return "Filiale";
   }
+
+  function shortId(id){
+    if (!id) return "-";
+    return (String(id).length >= 8) ? String(id).slice(0,8) : String(id);
+  }
 %>
 
 <div class="card-grid">
   <div class="card">
-    <h2>Bestellübersicht</h2>
-    <p>Alle Bestellungen von Filialen und B2B-Kunden inklusive Status, Lieferdatum und Schnellaktionen.</p>
+    <h2>Bestellungen</h2>
+    <p>Eine Seite, ein Workflow: prüfen, freigeben, weiterführen. Klare Struktur für schnelles Arbeiten im Alltag.</p>
   </div>
 
   <div class="card">
-    <h2>Workflow</h2>
-    <p>Prüfen  Freigeben  Produktion  Verpackung  Auslieferung. Jeder Schritt ist klar und nachvollziehbar.</p>
+    <h2>Status Timeline</h2>
+    <p>Entwurf  Eingegangen  Freigegeben  In Produktion  Verpackt  Ausgeliefert</p>
   </div>
 </div>
 
@@ -54,13 +64,81 @@
   </div>
 
   <div class="filter-right">
-    <span class="small-note">Platzhalter Filter UI (Logik kommt nach UI)</span>
-    <a class="btn btn-primary" href="/orders">Neue Bestellung</a>
-    <a class="btn btn-secondary" href="/production">Zur Produktion</a>
+    <span class="small-note">Filter UI jetzt, Logik danach.</span>
+    <button class="btn btn-secondary" type="button">Export</button>
+    <button class="btn btn-primary" type="button">Neue Bestellung</button>
   </div>
 </div>
 
-<div class="table-wrap">
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Neue Bestellung</h2>
+  <p>UI fertig. Im nächsten Schritt verbinden wir dieses Formular mit dem Backend (ohne Design-Änderungen).</p>
+
+  <div style="margin-top:12px;" class="filterbar">
+    <div class="filter-left">
+      <select class="select">
+        <option>Kanal: Filiale</option>
+        <option>Kanal: B2B</option>
+      </select>
+
+      <select class="select">
+        <option>Filiale wählen</option>
+        <option>Bunca City</option>
+        <option>Bunca Berger Straße</option>
+        <option>Bunca Grüneburgweg</option>
+      </select>
+
+      <input class="input" placeholder="B2B Kunde (nur bei B2B)" />
+      <input class="input" placeholder="Lieferdatum (YYYY-MM-DD)" />
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" type="button">Zurücksetzen</button>
+      <button class="btn btn-primary" type="button">Anlegen</button>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;" class="small-note">
+    Tipp: Starten Sie mit 1–2 Positionen. Später bauen wir eine dynamische Positionsliste (Add/Remove) ohne die Seite zu überladen.
+  </div>
+
+  <div style="margin-top:12px;" class="table-wrap">
+    <div class="table-head" style="grid-template-columns: 1fr 180px 180px 280px;">
+      <div>Artikel</div>
+      <div>Menge kg</div>
+      <div>Verpackung</div>
+      <div>Notiz</div>
+    </div>
+
+    <div class="table-row" style="grid-template-columns: 1fr 180px 180px 280px;">
+      <div><strong>Bombora</strong></div>
+      <div><input class="input" style="width:100%;" placeholder="z.B. 10" /></div>
+      <div>
+        <select class="select" style="width:100%;">
+          <option>1kg Beutel</option>
+          <option>250g Beutel</option>
+          <option>11kg</option>
+        </select>
+      </div>
+      <div><input class="input" style="width:100%;" placeholder="Optional" /></div>
+    </div>
+
+    <div class="table-row" style="grid-template-columns: 1fr 180px 180px 280px;">
+      <div><strong>Fiver</strong></div>
+      <div><input class="input" style="width:100%;" placeholder="z.B. 5" /></div>
+      <div>
+        <select class="select" style="width:100%;">
+          <option>1kg Beutel</option>
+          <option>250g Beutel</option>
+          <option>11kg</option>
+        </select>
+      </div>
+      <div><input class="input" style="width:100%;" placeholder="Optional" /></div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;" class="table-wrap">
   <div class="table-head">
     <div>ID</div>
     <div>Kanal</div>
@@ -74,32 +152,51 @@
     <div class="table-row">
       <div class="mono">-</div>
       <div>-</div>
-      <div>Keine Daten geladen</div>
+      <div>Keine Bestellungen geladen</div>
       <div>-</div>
-      <div><span class="badge"><span class="dot"></span>Platzhalter</span></div>
+      <div><span class="badge"><span class="dot"></span>Info</span></div>
       <div class="row-actions">
+        <button class="btn btn-primary" type="button">Prüfen</button>
         <button class="btn btn-secondary" type="button">Freigeben</button>
-        <button class="btn btn-ghost" type="button">Details</button>
       </div>
     </div>
   <% } %>
 
-  <% for (var i = 0; i < safeOrders.length; i++) { 
+  <% for (var i = 0; i < safeOrders.length; i++) {
       var o = safeOrders[i];
-      var shortId = (o.id && o.id.length >= 8) ? o.id.slice(0,8) : "-";
+      var s = statusInfo(o.status);
   %>
     <div class="table-row">
-      <div class="mono"><%= shortId %></div>
+      <div class="mono"><%= shortId(o.id) %></div>
       <div><%= channelLabel(o) %></div>
       <div><%= targetLabel(o) %></div>
       <div><%= o.deliveryDate ? o.deliveryDate : "-" %></div>
-      <div>
-        <span class="<%= statusBadge(o.status) %>"><span class="dot"></span><%= o.status ? o.status : "-" %></span>
-      </div>
+      <div><span class="<%= s.cls %>"><span class="dot"></span><%= s.label %></span></div>
       <div class="row-actions">
         <button class="btn btn-primary" type="button">Weiter</button>
-        <button class="btn btn-secondary" type="button">Bearbeiten</button>
+        <button class="btn btn-secondary" type="button">Details</button>
         <button class="btn btn-danger" type="button">Löschen</button>
+      </div>
+    </div>
+
+    <div class="table-row" style="grid-template-columns: 1fr;">
+      <div>
+        <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div class="small-note">Details</div>
+            <div style="margin-top:6px;">
+              <strong>Positionen:</strong> Platzhalter (später echte Liste aus Daten).
+            </div>
+            <div style="margin-top:6px;">
+              <strong>Notiz:</strong> <%= o.note ? o.note : "-" %>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+            <button class="btn btn-secondary" type="button">Als freigegeben markieren</button>
+            <button class="btn btn-ghost" type="button">Drucken</button>
+          </div>
+        </div>
       </div>
     </div>
   <% } %>
@@ -107,5 +204,5 @@
 
 <div style="margin-top:14px;" class="card card-wide">
   <h2>Erklärung</h2>
-  <p>Diese Seite ist so aufgebaut, dass man mit wenigen Klicks die Arbeit erledigt: Filtern, prüfen, Status weiterführen. Die echte Logik (Filtern, Status-Weiter) aktivieren wir nach dem UI-Finish.</p>
+  <p>Die Seite ist bewusst wie ein Cockpit gebaut: oben Eingabe, darunter Liste, darunter Details. So arbeiten Filialen und Rösterei schnell ohne Scroll-Chaos.</p>
 </div>
