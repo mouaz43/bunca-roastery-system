@@ -4,8 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= pageTitle || "Bunca Rösterei" %></title>
-
-  <!-- cache bust -->
   <link rel="stylesheet" href="/app.css?v=<%= Date.now() %>" />
 </head>
 <body>
@@ -34,7 +32,6 @@
             Eingeloggt als<br/>
             <strong><%= currentUser.name %></strong><br/>
             Rolle: <%= currentUser.role %>
-            <% if (currentUser.shopId) { %><br/>Filiale: <%= currentUser.shopId %><% } %>
           </div>
 
           <form method="POST" action="/logout" style="margin-top:10px;">
@@ -50,38 +47,11 @@
           <h1 class="page-title"><%= pageTitle || "" %></h1>
           <% if (pageSubtitle) { %><div class="page-subtitle"><%= pageSubtitle %></div><% } %>
         </div>
-
-        <div class="topbar-right">
-          <% if (systemStatus) { %>
-            <span class="badge <%= systemStatus.variant==='ok' ? 'ok' : 'warn' %>">
-              <span class="dot"></span><%= systemStatus.text %>
-            </span>
-          <% } %>
-        </div>
       </header>
 
       <section class="content">
         <%- body %>
       </section>
-
-      <% if (hintTitle || hintLines) { %>
-        <footer class="hint">
-          <div class="hint-title"><%= hintTitle || "Hinweis" %></div>
-          <div class="hint-body">
-            <% if (hintLines && hintLines.length) { %>
-              <% for (var i=0; i<hintLines.length; i++) { %>
-                <div class="small-note"><%= hintLines[i] %></div>
-              <% } %>
-            <% } %>
-          </div>
-          <% if (hintMeta) { %>
-            <div class="hint-meta">
-              <span class="small-note"><%= hintMeta.left || "" %></span>
-              <span class="small-note"><%= hintMeta.right || "" %></span>
-            </div>
-          <% } %>
-        </footer>
-      <% } %>
     </main>
   </div>
 </body>
