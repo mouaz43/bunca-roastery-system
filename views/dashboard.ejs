@@ -1,26 +1,31 @@
 <div class="card-grid">
   <div class="card">
-    <h2>Bestellungen</h2>
-    <p>Platzhalter: Anzahl offen, heute fällig, geprüft, freigegeben.</p>
+    <h2>Heute</h2>
+    <p>Platzhalter: Fällige Lieferungen, kritische Bestände, wichtige Hinweise.</p>
+  </div>
+
+  <div class="card">
+    <h2>Schnellaktionen</h2>
+    <p>Öffnen Sie direkt den wichtigsten Bereich für die aktuelle Arbeit.</p>
+    <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+      <a class="btn btn-primary" href="/orders">Bestellungen</a>
+      <a class="btn btn-secondary" href="/production">Produktion</a>
+      <a class="btn btn-secondary" href="/inventory">Lager</a>
+    </div>
   </div>
 
   <div class="card">
     <h2>Produktion</h2>
-    <p>Platzhalter: Röstbedarf diese Woche, laufende Chargen, Kapazität.</p>
+    <p>Platzhalter: Bedarf pro Sorte und Kapazität. Später automatisch aus Bestellungen berechnet.</p>
   </div>
 
   <div class="card">
-    <h2>Lager</h2>
-    <p>Platzhalter: Rohkaffee knapp, Röstkaffee Puffer, Verpackung kritisch.</p>
-  </div>
-
-  <div class="card">
-    <h2>Analysen</h2>
-    <p>Platzhalter: Trends, Abweichungen, Forecast Genauigkeit.</p>
+    <h2>Lagerstatus</h2>
+    <p>Platzhalter: Warnstufen für Rohkaffee, Röstkaffee und Verpackung.</p>
   </div>
 </div>
 
-<div style="margin-top:14px;" class="card">
-  <h2>Smart Hinweise</h2>
-  <p>Später erscheinen hier automatisch Hinweise wie: “Bombora Rohkaffee unter Mindestbestand” oder “City Bestellung heute fällig”.</p>
+<div style="margin-top:14px;" class="card card-wide">
+  <h2>Arbeitslogik</h2>
+  <p>Starten Sie immer bei Bestellungen. Freigaben erzeugen Produktionsbedarf. Produktion reduziert Rohkaffee und erhöht Röstkaffee. Auslieferung reduziert Röstkaffee.</p>
 </div>
