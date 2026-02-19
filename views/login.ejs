@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bunca Login</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;">
+  <div class="card" style="width: min(520px, 100%);">
+    <h1 style="margin:0;">Bunca Rösterei</h1>
+    <p class="small-note" style="margin-top:6px;">Produktions- und Bestellsystem</p>
+
+    <div style="margin-top:14px;">
+      <h2 style="margin:0;">Anmelden</h2>
+      <p class="small-note" style="margin-top:6px;">Bitte melden Sie sich mit Ihrem Benutzer an.</p>
+    </div>
+
+    <% if (error) { %>
+      <div class="card" style="margin-top:12px; border:1px solid rgba(255,80,80,.35);">
+        <strong>Fehler</strong>
+        <div class="small-note" style="margin-top:6px;"><%= error %></div>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/login" style="margin-top:14px; display:grid; gap:10px;">
+      <input class="input" name="email" placeholder="E-Mail" autocomplete="username" />
+      <input class="input" name="password" placeholder="Passwort" type="password" autocomplete="current-password" />
+      <button class="btn btn-primary" type="submit">Login</button>
+    </form>
+
+    <div style="margin-top:12px;" class="small-note">
+      Admin Default:
+      <span class="mono">admin@bunca.local</span> /
+      <span class="mono">Admin123!</span>
+    </div>
+
+    <div class="small-note" style="margin-top:8px;">
+      Filialen:
+      <span class="mono">city@bunca.local</span>,
+      <span class="mono">berger@bunca.local</span>,
+      <span class="mono">gruen@bunca.local</span>
+      (Passwort: <span class="mono">Shop123!</span>)
+    </div>
+
+    <div style="margin-top:14px;" class="small-note">
+      Hinweis: Passwörter ändern wir später in den Einstellungen.
+    </div>
+  </div>
+</body>
+</html>
