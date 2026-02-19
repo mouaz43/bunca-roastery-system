@@ -28,16 +28,18 @@ exports.renderDashboard = (req, res) => {
   const inv = store.getInventory();
   const demand = store.computeRoastDemand();
   const batches = store.listBatches();
+  const activity = store.listActivity();
 
   res.render("dashboard", Object.assign(base("dashboard", "Dashboard", "Übersicht und Schnellaktionen"), {
     ordersCount: orders.length,
     demandCount: demand.length,
     batchCount: batches.length,
+    activityCount: activity.length,
     inventoryUpdatedAt: inv.updatedAt,
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Wenn etwas dringend ist: zuerst Bestellungen, dann Produktion, dann Lager.",
-      "Diese Seite wird später automatisch priorisieren und warnen."
+      "Aktivität zeigt, was wann passiert ist."
     ],
     hintMeta: { left: "Aktuell Dummy-Store", right: "Nächster Schritt: DB" }
   }));
@@ -84,7 +86,7 @@ exports.renderInventory = (req, res) => {
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Pflegen Sie Bestände nach Lieferung, Produktion und Auslieferung.",
-      "Später wird jede Änderung automatisch protokolliert."
+      "Jede Änderung wird in Aktivität protokolliert."
     ],
     hintMeta: { left: "Ziel: keine Engpässe", right: "Letzte Änderung: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
   }));
@@ -111,5 +113,19 @@ exports.renderSettings = (req, res) => {
       "Nach DB-Migration wird das live editierbar."
     ],
     hintMeta: { left: "Admin Bereich", right: "Status: UI ready" }
+  }));
+};
+
+// NEW
+exports.renderActivity = (req, res) => {
+  const activity = store.listActivity();
+  res.render("activity", Object.assign(base("activity", "Aktivität", "Protokoll aller Aktionen"), {
+    activity,
+    hintTitle: "Seitenhinweis",
+    hintLines: [
+      "Aktivität ist Ihr Audit Log: wer hat was geändert und wann.",
+      "Später: Filter nach Benutzer, Bereich, Zeitraum und Export."
+    ],
+    hintMeta: { left: "Audit Log", right: "Einträge: " + activity.length }
   }));
 };
