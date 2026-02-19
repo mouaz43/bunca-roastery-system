@@ -9,13 +9,13 @@
 
 <body>
   <%
-    // Safe defaults to avoid ReferenceError in EJS
     var safeActiveNav = (typeof activeNav !== "undefined" && activeNav) ? activeNav : "";
     var safePageTitle = (typeof pageTitle !== "undefined" && pageTitle) ? pageTitle : (title ? title : "Übersicht");
     var safePageSubtitle = (typeof pageSubtitle !== "undefined" && pageSubtitle) ? pageSubtitle : "";
 
     var safePrimaryAction = (typeof primaryAction !== "undefined" && primaryAction) ? primaryAction : null;
     var safeSecondaryAction = (typeof secondaryAction !== "undefined" && secondaryAction) ? secondaryAction : null;
+    var safeTertiaryAction = (typeof tertiaryAction !== "undefined" && tertiaryAction) ? tertiaryAction : null;
 
     var statusVariant = "ok";
     var statusText = "Betrieb normal";
@@ -104,13 +104,17 @@
           <% } %>
         </div>
 
-        <div class="topbar-right">
-          <% if (safePrimaryAction && safePrimaryAction.href && safePrimaryAction.label) { %>
-            <a class="btn btn-primary" href="<%= safePrimaryAction.href %>"><%= safePrimaryAction.label %></a>
+        <div class="topbar-right" style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
+          <% if (safeTertiaryAction && safeTertiaryAction.href && safeTertiaryAction.label) { %>
+            <a class="btn btn-ghost" href="<%= safeTertiaryAction.href %>"><%= safeTertiaryAction.label %></a>
           <% } %>
 
           <% if (safeSecondaryAction && safeSecondaryAction.href && safeSecondaryAction.label) { %>
             <a class="btn btn-secondary" href="<%= safeSecondaryAction.href %>"><%= safeSecondaryAction.label %></a>
+          <% } %>
+
+          <% if (safePrimaryAction && safePrimaryAction.href && safePrimaryAction.label) { %>
+            <a class="btn btn-primary" href="<%= safePrimaryAction.href %>"><%= safePrimaryAction.label %></a>
           <% } %>
         </div>
       </header>
