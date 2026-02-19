@@ -1,84 +1,84 @@
-<!-- views/partials/layout.ejs -->
 <!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= (typeof pageTitle !== "undefined" && pageTitle) ? pageTitle : "Bunca Rösterei" %></title>
+  <title><%= pageTitle || "Bunca Rösterei" %></title>
 
-  <!-- IMPORTANT: only one CSS -->
-  <link rel="stylesheet" href="/css/app.css?v=1" />
+  <!-- cache bust -->
+  <link rel="stylesheet" href="/app.css?v=<%= Date.now() %>" />
 </head>
-
 <body>
-  <%
-    const _activeNav = (typeof activeNav !== "undefined") ? activeNav : "";
-    const _pageTitle = (typeof pageTitle !== "undefined") ? pageTitle : "";
-    const _pageSubtitle = (typeof pageSubtitle !== "undefined") ? pageSubtitle : "";
-    const _currentUser = (typeof currentUser !== "undefined") ? currentUser : null;
-
-    const _primaryAction = (typeof primaryAction !== "undefined") ? primaryAction : null;
-    const _hintTitle = (typeof hintTitle !== "undefined") ? hintTitle : null;
-    const _hintLines = (typeof hintLines !== "undefined") ? hintLines : null;
-  %>
-
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand-title">Bunca Rösterei</div>
-        <div class="brand-sub">Produktions- und Bestellsystem</div>
+        <div class="brand">
+          <div class="brand-title">Bunca Rösterei</div>
+          <div class="brand-sub">Produktions- und Bestellsystem</div>
+        </div>
       </div>
 
       <nav class="nav">
-        <a class="nav-item <%= _activeNav==='dashboard'?'active':'' %>" href="/dashboard">Dashboard</a>
-        <a class="nav-item <%= _activeNav==='orders'?'active':'' %>" href="/orders">Bestellungen</a>
-        <a class="nav-item <%= _activeNav==='production'?'active':'' %>" href="/production">Produktion</a>
-        <a class="nav-item <%= _activeNav==='inventory'?'active':'' %>" href="/inventory">Lager</a>
-        <a class="nav-item <%= _activeNav==='analytics'?'active':'' %>" href="/analytics">Analysen</a>
-        <a class="nav-item <%= _activeNav==='settings'?'active':'' %>" href="/settings">Einstellungen</a>
-        <a class="nav-item <%= _activeNav==='activity'?'active':'' %>" href="/activity">Aktivität</a>
+        <a class="nav-item <%= activeNav==='dashboard'?'active':'' %>" href="/dashboard">Dashboard</a>
+        <a class="nav-item <%= activeNav==='orders'?'active':'' %>" href="/orders">Bestellungen</a>
+        <a class="nav-item <%= activeNav==='production'?'active':'' %>" href="/production">Produktion</a>
+        <a class="nav-item <%= activeNav==='inventory'?'active':'' %>" href="/inventory">Lager</a>
+        <a class="nav-item <%= activeNav==='analytics'?'active':'' %>" href="/analytics">Analysen</a>
+        <a class="nav-item <%= activeNav==='settings'?'active':'' %>" href="/settings">Einstellungen</a>
+        <a class="nav-item <%= activeNav==='activity'?'active':'' %>" href="/activity">Aktivität</a>
       </nav>
 
       <div class="sidebar-footer">
-        <% if (_currentUser) { %>
-          <div class="small-note">Eingeloggt als</div>
-          <div class="brand-title" style="font-size:16px;margin-top:4px;"><%= _currentUser.name %></div>
-          <div class="small-note" style="margin-top:6px;">Rolle: <strong><%= _currentUser.role %></strong></div>
+        <% if (currentUser) { %>
+          <div class="small-note">
+            Eingeloggt als<br/>
+            <strong><%= currentUser.name %></strong><br/>
+            Rolle: <%= currentUser.role %>
+            <% if (currentUser.shopId) { %><br/>Filiale: <%= currentUser.shopId %><% } %>
+          </div>
 
-          <form method="POST" action="/logout" style="margin-top:12px;">
-            <button class="btn btn-secondary" type="submit">Abmelden</button>
+          <form method="POST" action="/logout" style="margin-top:10px;">
+            <button class="btn btn-secondary" type="submit" style="width:100%;">Abmelden</button>
           </form>
-        <% } else { %>
-          <div class="small-note">Nicht eingeloggt</div>
         <% } %>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <div>
-          <h1 class="page-title"><%= _pageTitle %></h1>
-          <% if (_pageSubtitle) { %>
-            <div class="page-subtitle"><%= _pageSubtitle %></div>
-          <% } %>
+        <div class="topbar-left">
+          <h1 class="page-title"><%= pageTitle || "" %></h1>
+          <% if (pageSubtitle) { %><div class="page-subtitle"><%= pageSubtitle %></div><% } %>
         </div>
 
-        <% if (_primaryAction && _primaryAction.href && _primaryAction.label) { %>
-          <a class="btn btn-primary" href="<%= _primaryAction.href %>"><%= _primaryAction.label %></a>
-        <% } %>
+        <div class="topbar-right">
+          <% if (systemStatus) { %>
+            <span class="badge <%= systemStatus.variant==='ok' ? 'ok' : 'warn' %>">
+              <span class="dot"></span><%= systemStatus.text %>
+            </span>
+          <% } %>
+        </div>
       </header>
 
       <section class="content">
         <%- body %>
       </section>
 
-      <% if (_hintTitle || (_hintLines && _hintLines.length)) { %>
-        <footer class="page-hint">
-          <div class="page-hint-title"><%= _hintTitle || "Hinweis" %></div>
-          <% if (_hintLines && _hintLines.length) { %>
-            <% for (let i=0; i<_hintLines.length; i++) { %>
-              <div class="small-note"><%= _hintLines[i] %></div>
+      <% if (hintTitle || hintLines) { %>
+        <footer class="hint">
+          <div class="hint-title"><%= hintTitle || "Hinweis" %></div>
+          <div class="hint-body">
+            <% if (hintLines && hintLines.length) { %>
+              <% for (var i=0; i<hintLines.length; i++) { %>
+                <div class="small-note"><%= hintLines[i] %></div>
+              <% } %>
             <% } %>
+          </div>
+          <% if (hintMeta) { %>
+            <div class="hint-meta">
+              <span class="small-note"><%= hintMeta.left || "" %></span>
+              <span class="small-note"><%= hintMeta.right || "" %></span>
+            </div>
           <% } %>
         </footer>
       <% } %>
