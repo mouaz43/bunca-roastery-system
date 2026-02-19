@@ -15,7 +15,10 @@
 
     var safePrimaryAction = (typeof primaryAction !== "undefined" && primaryAction) ? primaryAction : null;
     var safeSecondaryAction = (typeof secondaryAction !== "undefined" && secondaryAction) ? secondaryAction : null;
-    var safeTertiaryAction = (typeof tertiaryAction !== "undefined" && tertiaryAction) ? tertiaryAction : null;
+    var safeTertiaryAction = (typeof tertiaryAction !== "undefined" && tertiaryaryAction) ? tertiaryaryAction : null;
+
+    // fix typo fallback:
+    if (!safeTertiaryAction && (typeof tertiaryAction !== "undefined")) safeTertiaryAction = tertiaryAction;
 
     var statusVariant = "ok";
     var statusText = "Betrieb normal";
@@ -67,6 +70,10 @@
 
         <a class="nav-item <%= (safeActiveNav === 'analytics') ? 'is-active' : '' %>" href="/analytics">
           <span class="nav-label">Analysen</span>
+        </a>
+
+        <a class="nav-item <%= (safeActiveNav === 'activity') ? 'is-active' : '' %>" href="/activity">
+          <span class="nav-label">Aktivität</span>
         </a>
 
         <div class="nav-sep"></div>
