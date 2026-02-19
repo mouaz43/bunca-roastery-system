@@ -2,16 +2,21 @@
 const store = require("../data/store");
 
 function num(v) {
-  const n = Number.parseFloat(String(v).replace(",", "."));
+  const n = Number.parseFloat(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
-
 function cleanText(v) {
-  return String(v || "").trim();
+  return String(v ?? "").trim();
+}
+
+function errorRedirect(res, path, msg) {
+  // Minimal: pass error via querystring (later we show toast nicely)
+  const qs = msg ? `?error=${encodeURIComponent(msg)}` : "";
+  return res.redirect(path + qs);
 }
 
 // ORDERS
-exports.createOrder = (req, res) => {
+exports.createOrder = async (req, res) => {
   const channel = cleanText(req.body.channel) || "FILIALE";
   const shopId = cleanText(req.body.shopId) || null;
   const customerName = cleanText(req.body.customerName) || null;
@@ -28,7 +33,18 @@ exports.createOrder = (req, res) => {
     items.push({ coffeeId, coffeeName: coffee ? coffee.name : coffeeId, kg });
   }
 
-  store.createOrder({
+  if (!items.length) {
+    return errorRedirect(res, "/orders", "Bestellung muss mindestens 1 Position enthalten.");
+  }
+
+  if (channel === "FILIALE" && !shopId) {
+    return errorRedirect(res, "/orders", "Bitte Filiale auswählen.");
+  }
+  if (channel === "B2B" && !customerName) {
+    return errorRedirect(res, "/orders", "Bitte B2B Kundenname eintragen.");
+  }
+
+  await store.createOrder({
     channel,
     shopId: channel === "FILIALE" ? shopId : null,
     customerName: channel === "B2B" ? customerName : null,
@@ -41,40 +57,76 @@ exports.createOrder = (req, res) => {
   res.redirect("/orders");
 };
 
-exports.advanceOrder = (req, res) => {
+exports.advanceOrder = async (req, res) => {
   const id = req.params.id;
-  const order = store.getOrderById(id);
+  const order = await store.getOrderById(id);
   if (!order) return res.redirect("/orders");
 
   const statuses = store.ORDER_STATUS;
   const idx = statuses.indexOf(order.status);
 
-  if (idx >= 0 && idx < statuses.length - 1) {
-    store.setOrderStatus(id, statuses[idx + 1]);
+  if (idx < 0) return errorRedirect(res, "/orders", "Unbekannter Status.");
+  if (idx >= statuses.length - 1) return errorRedirect(res, "/orders", "Bestellung ist bereits abgeschlossen.");
+
+  // Hard rule: cannot go to IN_PRODUKTION unless already FREIGEGEBEN
+  const next = statuses[idx + 1];
+  if (next === "IN_PRODUKTION" && order.status !== "FREIGEGEBEN") {
+    return errorRedirect(res, "/orders", "Nur freigegebene Bestellungen können in Produktion gehen.");
   }
+
+  await store.setOrderStatus(id, next);
   res.redirect("/orders");
 };
 
-exports.approveOrder = (req, res) => {
+exports.approveOrder = async (req, res) => {
   const id = req.params.id;
-  const order = store.getOrderById(id);
+  const order = await store.getOrderById(id);
   if (!order) return res.redirect("/orders");
-  store.setOrderStatus(id, "FREIGEGEBEN");
+
+  if (order.status === "AUSGELIEFERT") return errorRedirect(res, "/orders", "Bereits ausgeliefert.");
+  if (order.status !== "EINGEGANGEN" && order.status !== "ENTWURF") {
+    return errorRedirect(res, "/orders", "Freigabe ist nur aus Entwurf oder Eingegangen erlaubt.");
+  }
+
+  await store.setOrderStatus(id, "FREIGEGEBEN");
   res.redirect("/orders");
 };
 
-exports.deleteOrder = (req, res) => {
-  store.deleteOrder(req.params.id);
+exports.deleteOrder = async (req, res) => {
+  await store.deleteOrder(req.params.id);
+  res.redirect("/orders");
+};
+
+// NEW: Delivery booking for an order (consume roasted stock)
+exports.deliverOrder = async (req, res) => {
+  const id = req.params.id;
+  const order = await store.getOrderById(id);
+  if (!order) return res.redirect("/orders");
+
+  if (order.status !== "VERPACKT" && order.status !== "IN_PRODUKTION" && order.status !== "FREIGEGEBEN") {
+    return errorRedirect(res, "/orders", "Auslieferung ist erst nach Freigabe sinnvoll.");
+  }
+
+  // Try to consume roasted stock. If not enough, block.
+  const ok = await store.consumeRoastedForOrder(order);
+  if (!ok.ok) {
+    return errorRedirect(res, "/orders", `Nicht genug Röstkaffee: ${ok.reason}`);
+  }
+
+  await store.setOrderStatus(id, "AUSGELIEFERT");
   res.redirect("/orders");
 };
 
 // INVENTORY
-exports.applyInventoryChange = (req, res) => {
+exports.applyInventoryChange = async (req, res) => {
   const type = cleanText(req.body.type);
   const coffeeId = cleanText(req.body.coffeeId);
   const deltaKg = num(req.body.deltaKg);
 
-  store.applyInventoryChange({
+  if (!coffeeId) return errorRedirect(res, "/inventory", "Bitte Sorte wählen.");
+  if (!Number.isFinite(deltaKg) || deltaKg === 0) return errorRedirect(res, "/inventory", "Bitte Menge eingeben.");
+
+  await store.applyInventoryChange({
     type,
     coffeeId,
     deltaKg,
@@ -85,15 +137,15 @@ exports.applyInventoryChange = (req, res) => {
 };
 
 // BATCHES
-exports.createBatch = (req, res) => {
+exports.createBatch = async (req, res) => {
   const coffeeId = cleanText(req.body.coffeeId);
   const kg = num(req.body.kg);
   const note = cleanText(req.body.note);
 
-  if (!coffeeId || kg <= 0) return res.redirect("/production");
+  if (!coffeeId || kg <= 0) return errorRedirect(res, "/production", "Bitte Sorte und kg eingeben.");
 
   const coffee = store.COFFEES.find(c => c.id === coffeeId);
-  store.createBatch({
+  await store.createBatch({
     coffeeId,
     coffeeName: coffee ? coffee.name : coffeeId,
     kg,
@@ -104,12 +156,12 @@ exports.createBatch = (req, res) => {
   res.redirect("/production");
 };
 
-exports.advanceBatch = (req, res) => {
-  store.advanceBatch(req.params.id);
+exports.advanceBatch = async (req, res) => {
+  await store.advanceBatch(req.params.id);
   res.redirect("/production");
 };
 
-exports.deleteBatch = (req, res) => {
-  store.deleteBatch(req.params.id);
+exports.deleteBatch = async (req, res) => {
+  await store.deleteBatch(req.params.id);
   res.redirect("/production");
 };
