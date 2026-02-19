@@ -2,25 +2,9 @@
 const { randomUUID } = require("crypto");
 const db = require("../db");
 
-const ORDER_STATUS = [
-  "ENTWURF",
-  "EINGEGANGEN",
-  "FREIGEGEBEN",
-  "IN_PRODUKTION",
-  "VERPACKT",
-  "AUSGELIEFERT"
-];
+const ORDER_STATUS = ["ENTWURF","EINGEGANGEN","FREIGEGEBEN","IN_PRODUKTION","VERPACKT","AUSGELIEFERT"];
+const BATCH_STATUS = ["GEPLANT","GEROESTET","ABGEKUEHLT","VERPACKT","BEREIT","AUSGELIEFERT"];
 
-const BATCH_STATUS = [
-  "GEPLANT",
-  "GEROESTET",
-  "ABGEKUEHLT",
-  "VERPACKT",
-  "BEREIT",
-  "AUSGELIEFERT"
-];
-
-// These are now read from DB, but keep exported for UI expectations.
 let COFFEES = [];
 let SHOPS = [];
 
@@ -40,12 +24,7 @@ async function log(action, meta) {
 }
 
 async function listOrders() {
-  const res = await db.query(`
-    SELECT o.*
-    FROM orders o
-    ORDER BY o.created_at DESC
-  `);
-
+  const res = await db.query(`SELECT * FROM orders ORDER BY created_at DESC`);
   const rows = res.rows;
   if (!rows.length) return [];
 
@@ -77,18 +56,20 @@ async function listOrders() {
     status: o.status,
     note: o.note || "",
     createdAt: o.created_at.toISOString(),
-    items: itemsByOrder[o.id] || [],
-    shopName: null
+    items: itemsByOrder[o.id] || []
   }));
 }
 
 async function getOrderById(id) {
   const res = await db.query(`SELECT * FROM orders WHERE id = $1`, [id]);
   if (!res.rows.length) return null;
-
   const o = res.rows[0];
+
   const itemsRes = await db.query(
-    `SELECT coffee_id, coffee_name, kg FROM order_items WHERE order_id = $1 ORDER BY coffee_name ASC`,
+    `SELECT coffee_id, coffee_name, kg
+     FROM order_items
+     WHERE order_id = $1
+     ORDER BY coffee_name ASC`,
     [id]
   );
 
@@ -107,22 +88,13 @@ async function getOrderById(id) {
 
 async function createOrder(payload) {
   const id = randomUUID();
-
   await db.query(
     `INSERT INTO orders (id, channel, shop_id, customer_name, delivery_date, status, note)
      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [
-      id,
-      payload.channel,
-      payload.shopId || null,
-      payload.customerName || null,
-      payload.deliveryDate,
-      payload.status || "EINGEGANGEN",
-      payload.note || ""
-    ]
+    [id, payload.channel, payload.shopId || null, payload.customerName || null, payload.deliveryDate, payload.status || "EINGEGANGEN", payload.note || ""]
   );
 
-  for (const it of (payload.items || [])) {
+  for (const it of payload.items || []) {
     await db.query(
       `INSERT INTO order_items (id, order_id, coffee_id, coffee_name, kg)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -137,7 +109,6 @@ async function createOrder(payload) {
 async function setOrderStatus(id, nextStatus) {
   const before = await getOrderById(id);
   if (!before) return null;
-
   await db.query(`UPDATE orders SET status = $1 WHERE id = $2`, [nextStatus, id]);
   await log("ORDER_STATUS", { orderId: id, from: before.status, to: nextStatus });
   return true;
@@ -150,24 +121,15 @@ async function deleteOrder(id) {
 }
 
 async function getInventory() {
-  const invRes = await db.query(`
-    SELECT i.coffee_id, i.green_kg, i.roasted_kg
-    FROM inventory i
-    ORDER BY i.coffee_id ASC
-  `);
-
+  const invRes = await db.query(`SELECT coffee_id, green_kg, roasted_kg FROM inventory ORDER BY coffee_id ASC`);
   const greenBeansKg = {};
   const roastedKg = {};
-
   for (const r of invRes.rows) {
     greenBeansKg[r.coffee_id] = Number(r.green_kg);
     roastedKg[r.coffee_id] = Number(r.roasted_kg);
   }
-
-  // Use last activity time as updatedAt proxy
   const upd = await db.query(`SELECT at FROM activity ORDER BY at DESC LIMIT 1`);
   const updatedAt = upd.rows.length ? upd.rows[0].at.toISOString() : new Date().toISOString();
-
   return { greenBeansKg, roastedKg, packagingUnits: {}, updatedAt };
 }
 
@@ -175,22 +137,13 @@ async function applyInventoryChange(change) {
   const type = change.type;
   const coffeeId = change.coffeeId;
   const deltaKg = Number(change.deltaKg);
-
   if (!coffeeId || !Number.isFinite(deltaKg)) return false;
 
   if (type === "GREEN") {
-    await db.query(
-      `UPDATE inventory SET green_kg = GREATEST(0, green_kg + $1) WHERE coffee_id = $2`,
-      [deltaKg, coffeeId]
-    );
+    await db.query(`UPDATE inventory SET green_kg = GREATEST(0, green_kg + $1) WHERE coffee_id = $2`, [deltaKg, coffeeId]);
   } else if (type === "ROASTED") {
-    await db.query(
-      `UPDATE inventory SET roasted_kg = GREATEST(0, roasted_kg + $1) WHERE coffee_id = $2`,
-      [deltaKg, coffeeId]
-    );
-  } else {
-    return false;
-  }
+    await db.query(`UPDATE inventory SET roasted_kg = GREATEST(0, roasted_kg + $1) WHERE coffee_id = $2`, [deltaKg, coffeeId]);
+  } else return false;
 
   await log("INVENTORY_CHANGE", { type, coffeeId, deltaKg, note: change.note || "" });
   return true;
@@ -198,24 +151,41 @@ async function applyInventoryChange(change) {
 
 async function computeRoastDemand() {
   const eligible = ["FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT"];
-
   const res = await db.query(
-    `
-    SELECT oi.coffee_id, oi.coffee_name, SUM(oi.kg)::numeric AS kg
-    FROM orders o
-    JOIN order_items oi ON oi.order_id = o.id
-    WHERE o.status = ANY($1::text[])
-    GROUP BY oi.coffee_id, oi.coffee_name
-    ORDER BY SUM(oi.kg) DESC
-    `,
+    `SELECT oi.coffee_id, oi.coffee_name, SUM(oi.kg)::numeric AS kg
+     FROM orders o
+     JOIN order_items oi ON oi.order_id = o.id
+     WHERE o.status = ANY($1::text[])
+     GROUP BY oi.coffee_id, oi.coffee_name
+     ORDER BY SUM(oi.kg) DESC`,
     [eligible]
   );
+  return res.rows.map(r => ({ coffeeId: r.coffee_id, coffeeName: r.coffee_name, kg: Number(r.kg) }));
+}
 
-  return res.rows.map(r => ({
-    coffeeId: r.coffee_id,
-    coffeeName: r.coffee_name,
-    kg: Number(r.kg)
-  }));
+// NEW: Consume roasted stock for an order atomically-ish (simple, single process)
+async function consumeRoastedForOrder(order) {
+  const inv = await getInventory();
+
+  for (const it of order.items || []) {
+    const available = inv.roastedKg[it.coffeeId] || 0;
+    if (available < it.kg) {
+      return { ok: false, reason: `${it.coffeeName}: verfügbar ${available}kg, benötigt ${it.kg}kg` };
+    }
+  }
+
+  for (const it of order.items || []) {
+    await db.query(
+      `UPDATE inventory
+       SET roasted_kg = GREATEST(0, roasted_kg - $1)
+       WHERE coffee_id = $2`,
+      [Number(it.kg), it.coffeeId]
+    );
+    await log("INVENTORY_MOVE", { from: "ROASTED", to: "DELIVERED", coffeeId: it.coffeeId, kg: Number(it.kg), orderId: order.id });
+  }
+
+  await log("ORDER_DELIVER", { orderId: order.id });
+  return { ok: true };
 }
 
 async function listBatches() {
@@ -254,14 +224,27 @@ async function advanceBatch(id) {
   await db.query(`UPDATE batches SET status = $1 WHERE id = $2`, [next, id]);
   await log("BATCH_STATUS", { batchId: id, from: batch.status, to: next });
 
-  // Stock movement when status becomes GEROESTET
+  // Movement when roasted
   if (next === "GEROESTET") {
     await db.query(
-      `UPDATE inventory SET green_kg = GREATEST(0, green_kg - $1), roasted_kg = GREATEST(0, roasted_kg + $1)
+      `UPDATE inventory
+       SET green_kg = GREATEST(0, green_kg - $1),
+           roasted_kg = GREATEST(0, roasted_kg + $1)
        WHERE coffee_id = $2`,
       [Number(batch.kg), batch.coffee_id]
     );
     await log("INVENTORY_MOVE", { from: "GREEN", to: "ROASTED", coffeeId: batch.coffee_id, kg: Number(batch.kg), batchId: id });
+  }
+
+  // Movement when batch delivered: roasted decreases
+  if (next === "AUSGELIEFERT") {
+    await db.query(
+      `UPDATE inventory
+       SET roasted_kg = GREATEST(0, roasted_kg - $1)
+       WHERE coffee_id = $2`,
+      [Number(batch.kg), batch.coffee_id]
+    );
+    await log("INVENTORY_MOVE", { from: "ROASTED", to: "BATCH_DELIVERED", coffeeId: batch.coffee_id, kg: Number(batch.kg), batchId: id });
   }
 
   return true;
@@ -275,12 +258,7 @@ async function deleteBatch(id) {
 
 async function listActivity() {
   const res = await db.query(`SELECT * FROM activity ORDER BY at DESC LIMIT 250`);
-  return res.rows.map(a => ({
-    id: a.id,
-    at: a.at.toISOString(),
-    action: a.action,
-    meta: a.meta
-  }));
+  return res.rows.map(a => ({ id: a.id, at: a.at.toISOString(), action: a.action, meta: a.meta }));
 }
 
 module.exports = {
@@ -288,7 +266,6 @@ module.exports = {
   BATCH_STATUS,
   get COFFEES() { return COFFEES; },
   get SHOPS() { return SHOPS; },
-
   refreshMasters,
 
   listOrders,
@@ -301,6 +278,8 @@ module.exports = {
   applyInventoryChange,
 
   computeRoastDemand,
+
+  consumeRoastedForOrder,
 
   listBatches,
   createBatch,
