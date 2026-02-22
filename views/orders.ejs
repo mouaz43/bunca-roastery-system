@@ -1,328 +1,352 @@
 <%
-  var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
-  var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
-  var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
-  var f = (typeof filters !== "undefined" && filters) ? filters : { search:"", status:"ALL", channel:"ALL", shop:"ALL", range:"30" };
+  var orders = (typeof orders !== "undefined" && orders) ? orders : [];
+  var selectedOrder = (typeof selectedOrder !== "undefined") ? selectedOrder : null;
 
-  // Detect role via layout-injected currentUser
-  var u = (typeof currentUser !== "undefined" && currentUser) ? currentUser : null;
-  var isShop = (u && u.role === "SHOP");
+  var shops = (typeof shops !== "undefined" && shops) ? shops : [];
+  var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
+  var b2bCustomers = (typeof b2bCustomers !== "undefined" && b2bCustomers) ? b2bCustomers : [];
 
-  function statusInfo(status){
-    var map = {
-      "ENTWURF": { cls: "badge", label: "Entwurf" },
-      "EINGEGANGEN": { cls: "badge warn", label: "Eingegangen" },
-      "FREIGEGEBEN": { cls: "badge ok", label: "Freigegeben" },
-      "IN_PRODUKTION": { cls: "badge warn", label: "In Produktion" },
-      "VERPACKT": { cls: "badge ok", label: "Verpackt" },
-      "AUSGELIEFERT": { cls: "badge info", label: "Ausgeliefert" }
-    };
-    return map[status] || { cls: "badge", label: (status || "-") };
+  var filters = (typeof filters !== "undefined" && filters) ? filters : { search:"", status:"ALL", channel:"ALL", shop:"ALL", range:"30" };
+  var okMsg = (typeof okMsg !== "undefined" && okMsg) ? okMsg : "";
+  var errMsg = (typeof errMsg !== "undefined" && errMsg) ? errMsg : "";
+
+  var shopMode = !!(typeof shopMode !== "undefined" && shopMode);
+  var shopId = (typeof shopId !== "undefined" && shopId) ? shopId : "";
+  var user = (typeof user !== "undefined" && user) ? user : null;
+
+  function esc(s){ return encodeURIComponent(String(s||"")); }
+  function buildLink(extra){
+    var qs = "tab=orders"; // dummy to avoid empty
+    qs = "q="+esc(filters.search)+"&status="+esc(filters.status)+"&channel="+esc(filters.channel)+"&shop="+esc(filters.shop)+"&range="+esc(filters.range);
+    if (extra) qs += "&" + extra;
+    return "/orders?" + qs;
   }
-
-  function channelLabel(o){
-    if (!o || !o.channel) return "-";
-    return (o.channel === "B2B") ? "B2B" : "Filiale";
-  }
-
-  function targetLabel(o){
-    if (!o) return "-";
-    if (o.channel === "B2B") return o.customerName ? o.customerName : "B2B Kunde";
-    if (o.shopId) return o.shopId;
-    return "Filiale";
-  }
-
-  function shortId(id){
-    if (!id) return "-";
-    var s = String(id);
-    return s.length >= 8 ? s.slice(0,8) : s;
-  }
-
-  function todayISO(){
-    return new Date().toISOString().slice(0,10);
-  }
-
-  function sumKg(items){
-    var total = 0;
-    if (!items || !items.length) return 0;
-    for (var i=0;i<items.length;i++){
-      var n = Number(items[i].kg);
-      if (!isNaN(n)) total += n;
-    }
-    return total;
+  function badge(st){
+    if (st==="EINGEGANGEN") return "badge";
+    if (st==="FREIGEGEBEN") return "badge ok";
+    if (st==="IN_PRODUKTION") return "badge";
+    if (st==="VERPACKT") return "badge";
+    if (st==="AUSGELIEFERT") return "badge ok";
+    return "badge";
   }
 %>
 
-<div class="card-grid">
+<% if (errMsg) { %>
+  <div class="card" style="border-color: rgba(255,77,77,.35);"><h2>Fehler</h2><p><%= errMsg %></p></div>
+<% } %>
+<% if (okMsg) { %>
+  <div class="card" style="border-color: rgba(38,201,122,.35);"><h2>OK</h2><p><%= okMsg %></p></div>
+<% } %>
+
+<div class="card-grid" style="grid-template-columns: 420px 1fr; align-items:start;">
+  <!-- LEFT -->
   <div class="card">
     <h2>Bestellungen</h2>
-    <p>
-      <% if (isShop) { %>
-        Sie sehen nur Bestellungen Ihrer Filiale. Freigabe und Auslieferung macht die Rösterei.
-      <% } else { %>
-        Erfassen, freigeben, verfolgen. Freigegebene Bestellungen erzeugen Produktionsbedarf.
-      <% } %>
-    </p>
-  </div>
+    <p class="small-note">Suchen, filtern, auswählen. Offene Bestellungen stehen oben.</p>
 
-  <div class="card">
-    <h2>Workflow</h2>
-    <p>Eingegangen → Freigegeben → In Produktion → Verpackt → Ausgeliefert</p>
-  </div>
-</div>
+    <form method="GET" action="/orders" class="mt-3">
+      <div style="display:grid; gap:10px;">
+        <input class="input" name="q" placeholder="Suche (ID, Kunde, Notiz, Sorte...)" value="<%= filters.search %>"/>
 
-<!-- FILTERS -->
-<div class="filterbar">
-  <form method="GET" action="/orders" class="filter-left" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-    <input class="input" name="q" value="<%= f.search %>" placeholder="Suche (ID, Notiz, Sorte, Kunde)" style="min-width:260px;" />
+        <div class="row" style="gap:10px;">
+          <select class="select" name="status" style="flex:1;">
+            <option value="ALL" <%= filters.status==="ALL"?"selected":"" %>>Status: Alle</option>
+            <option value="EINGEGANGEN" <%= filters.status==="EINGEGANGEN"?"selected":"" %>>Eingegangen</option>
+            <option value="FREIGEGEBEN" <%= filters.status==="FREIGEGEBEN"?"selected":"" %>>Freigegeben</option>
+            <option value="IN_PRODUKTION" <%= filters.status==="IN_PRODUKTION"?"selected":"" %>>In Produktion</option>
+            <option value="VERPACKT" <%= filters.status==="VERPACKT"?"selected":"" %>>Verpackt</option>
+            <option value="AUSGELIEFERT" <%= filters.status==="AUSGELIEFERT"?"selected":"" %>>Ausgeliefert</option>
+          </select>
 
-    <select class="select" name="status">
-      <option value="ALL" <%= (f.status==="ALL"?"selected":"") %>>Status: Alle</option>
-      <option value="EINGEGANGEN" <%= (f.status==="EINGEGANGEN"?"selected":"") %>>Eingegangen</option>
-      <option value="FREIGEGEBEN" <%= (f.status==="FREIGEGEBEN"?"selected":"") %>>Freigegeben</option>
-      <option value="IN_PRODUKTION" <%= (f.status==="IN_PRODUKTION"?"selected":"") %>>In Produktion</option>
-      <option value="VERPACKT" <%= (f.status==="VERPACKT"?"selected":"") %>>Verpackt</option>
-      <option value="AUSGELIEFERT" <%= (f.status==="AUSGELIEFERT"?"selected":"") %>>Ausgeliefert</option>
-    </select>
+          <select class="select" name="range" style="width:140px;">
+            <option value="7" <%= filters.range==="7"?"selected":"" %>>7 Tage</option>
+            <option value="30" <%= filters.range==="30"?"selected":"" %>>30 Tage</option>
+            <option value="90" <%= filters.range==="90"?"selected":"" %>>90 Tage</option>
+          </select>
+        </div>
 
-    <% if (!isShop) { %>
-      <select class="select" name="channel">
-        <option value="ALL" <%= (f.channel==="ALL"?"selected":"") %>>Kanal: Alle</option>
-        <option value="FILIALE" <%= (f.channel==="FILIALE"?"selected":"") %>>Filiale</option>
-        <option value="B2B" <%= (f.channel==="B2B"?"selected":"") %>>B2B</option>
-      </select>
-
-      <select class="select" name="shop">
-        <option value="ALL" <%= (f.shop==="ALL"?"selected":"") %>>Filiale: Alle</option>
-        <% for (var s=0; s<safeShops.length; s++) { %>
-          <option value="<%= safeShops[s].id %>" <%= (f.shop===safeShops[s].id?"selected":"") %>><%= safeShops[s].name %></option>
-        <% } %>
-      </select>
-    <% } %>
-
-    <select class="select" name="range">
-      <option value="7" <%= (String(f.range)==="7"?"selected":"") %>>Zeitraum: 7 Tage</option>
-      <option value="30" <%= (String(f.range)==="30"?"selected":"") %>>30 Tage</option>
-      <option value="90" <%= (String(f.range)==="90"?"selected":"") %>>90 Tage</option>
-      <option value="365" <%= (String(f.range)==="365"?"selected":"") %>>1 Jahr</option>
-    </select>
-
-    <button class="btn btn-sm" type="submit">Filtern</button>
-    <a class="btn btn-sm btn-ghost" href="/orders">Reset</a>
-  </form>
-
-  <div class="filter-right">
-    <a class="btn btn-primary" href="#new">
-      <span class="btn-icon" aria-hidden="true"></span>
-      Neue Bestellung
-    </a>
-  </div>
-</div>
-
-<!-- NEW ORDER PANEL -->
-<div id="new" class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Neue Bestellung</div>
-      <div class="section-sub">
-        <% if (isShop) { %>
-          Filiale wird automatisch gesetzt. Sie können nur Filialbestellungen anlegen.
-        <% } else { %>
-          Mindestens eine Position. Filiale oder B2B Kanal.
-        <% } %>
-      </div>
-    </div>
-    <div class="spacer"></div>
-    <a class="btn btn-sm btn-ghost" href="#list">Zur Liste</a>
-  </div>
-
-  <div class="section-body">
-    <form method="POST" action="/actions/orders/create">
-      <div class="filterbar" style="margin-bottom:12px;">
-        <div class="filter-left">
-          <% if (!isShop) { %>
-            <select class="select" name="channel">
-              <option value="FILIALE">Kanal: Filiale</option>
-              <option value="B2B">Kanal: B2B</option>
+        <% if (!shopMode) { %>
+          <div class="row" style="gap:10px;">
+            <select class="select" name="channel" style="flex:1;">
+              <option value="ALL" <%= filters.channel==="ALL"?"selected":"" %>>Kanal: Alle</option>
+              <option value="FILIALE" <%= filters.channel==="FILIALE"?"selected":"" %>>Filiale</option>
+              <option value="B2B" <%= filters.channel==="B2B"?"selected":"" %>>B2B</option>
             </select>
 
-            <select class="select" name="shopId">
-              <option value="">Filiale wählen</option>
-              <% for (var ss=0; ss<safeShops.length; ss++) { %>
-                <option value="<%= safeShops[ss].id %>"><%= safeShops[ss].name %></option>
+            <select class="select" name="shop" style="flex:1;">
+              <option value="ALL" <%= filters.shop==="ALL"?"selected":"" %>>Filiale: Alle</option>
+              <% for (var s=0;s<shops.length;s++) { %>
+                <option value="<%= shops[s].id %>" <%= String(filters.shop)===String(shops[s].id)?"selected":"" %>><%= shops[s].name %></option>
               <% } %>
             </select>
-
-            <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" style="min-width:240px;" />
-          <% } else { %>
-            <!-- For SHOP users: controller enforces channel=FILIALE and shopId=currentUser.shopId -->
-            <input type="hidden" name="channel" value="FILIALE" />
-            <input type="hidden" name="shopId" value="<%= (u && u.shopId) ? u.shopId : '' %>" />
-          <% } %>
-
-          <input class="input" type="date" name="deliveryDate" value="<%= todayISO() %>" />
-        </div>
-
-        <div class="filter-right">
-          <button class="btn btn-sm btn-ghost" type="reset">Zurücksetzen</button>
-          <button class="btn btn-primary" type="submit">
-            <span class="btn-icon" aria-hidden="true"></span>
-            Anlegen
-          </button>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <div class="table-head" style="grid-template-columns: 1fr 180px;">
-          <div>Artikel</div>
-          <div>Menge kg</div>
-        </div>
-
-        <% for (var i=1; i<=6; i++) { %>
-          <div class="table-row" style="grid-template-columns: 1fr 180px;">
-            <div>
-              <select class="select" style="width:100%;" name="item<%= i %>CoffeeId">
-                <option value="">Sorte wählen</option>
-                <% for (var c=0; c<safeCoffees.length; c++) { %>
-                  <option value="<%= safeCoffees[c].id %>"><%= safeCoffees[c].name %></option>
-                <% } %>
-              </select>
-            </div>
-            <div>
-              <input class="input" name="item<%= i %>Kg" placeholder="z.B. 10" />
-            </div>
           </div>
         <% } %>
-      </div>
 
-      <div class="mt-3">
-        <input class="input" name="note" placeholder="Notiz (optional) – z.B. Lieferfenster, Hinweise" />
+        <button class="btn btn-primary" type="submit">Filtern</button>
       </div>
     </form>
-  </div>
-</div>
 
-<!-- ORDERS LIST -->
-<div id="list" class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Bestell-Liste</div>
-      <div class="section-sub">
-        <% if (isShop) { %>
-          Status wird von der Rösterei gepflegt. Sie können hier nur ansehen.
-        <% } else { %>
-          Schnellaktionen direkt pro Bestellung. Details unter der Zeile.
-        <% } %>
-      </div>
-    </div>
-    <div class="spacer"></div>
-    <div class="badge info"><span class="dot"></span><%= safeOrders.length %> Treffer</div>
-  </div>
-
-  <div class="section-body" style="padding:0;">
-    <div class="table-wrap" style="border-radius:0; border-left:none; border-right:none; border-bottom:none;">
-      <div class="table-head" style="grid-template-columns: 110px 110px 1fr 120px 160px <%= isShop ? '220px' : '340px' %>;">
-        <div>ID</div>
-        <div>Kanal</div>
-        <div>Ziel</div>
-        <div>Lieferung</div>
-        <div>Status</div>
-        <div class="right"><%= isShop ? "Info" : "Aktionen" %></div>
-      </div>
-
-      <% if (!safeOrders.length) { %>
-        <div class="table-row" style="grid-template-columns: 1fr;">
-          <div class="card" style="margin:14px;">
-            <h2>Keine Bestellungen</h2>
-            <p>Es gibt aktuell keine Bestellungen in diesem Filter. Legen Sie oben eine neue Bestellung an.</p>
-            <div class="row" style="margin-top:12px;">
-              <a class="btn btn-primary" href="#new"><span class="btn-icon"></span>Neue Bestellung</a>
-              <a class="btn btn-ghost" href="/orders">Filter zurücksetzen</a>
-            </div>
-          </div>
-        </div>
+    <div class="mt-3" style="display:grid; gap:8px;">
+      <% if (!orders.length) { %>
+        <div class="small-note">Keine Bestellungen gefunden.</div>
       <% } %>
 
-      <% for (var i=0; i<safeOrders.length; i++) {
-          var o = safeOrders[i];
-          var s = statusInfo(o.status);
-          var total = sumKg(o.items);
+      <% for (var i=0;i<orders.length;i++) { 
+           var o = orders[i];
+           var isSel = selectedOrder && String(selectedOrder.id)===String(o.id);
       %>
-        <div class="table-row" style="grid-template-columns: 110px 110px 1fr 120px 160px <%= isShop ? '220px' : '340px' %>;">
-          <div class="mono"><%= shortId(o.id) %></div>
-          <div><%= channelLabel(o) %></div>
-          <div>
-            <div style="font-weight:950;"><%= targetLabel(o) %></div>
-            <div class="small-note"><%= (o.items && o.items.length) ? (o.items.length + " Positionen · " + total + " kg") : "Keine Positionen" %></div>
-          </div>
-          <div class="mono"><%= o.deliveryDate ? o.deliveryDate : "-" %></div>
-          <div><span class="<%= s.cls %>"><span class="dot"></span><%= s.label %></span></div>
-
-          <div class="row-actions">
-            <% if (!isShop) { %>
-              <form method="POST" action="/actions/orders/<%= o.id %>/approve">
-                <button class="btn btn-sm" type="submit">Freigeben</button>
-              </form>
-
-              <form method="POST" action="/actions/orders/<%= o.id %>/advance">
-                <button class="btn btn-sm btn-primary" type="submit">
-                  <span class="btn-icon" aria-hidden="true"></span>
-                  Weiter
-                </button>
-              </form>
-
-              <form method="POST" action="/actions/orders/<%= o.id %>/deliver" onsubmit="return confirm('Auslieferung buchen? Röstkaffee wird abgezogen.');">
-                <button class="btn btn-sm" type="submit">Ausliefern</button>
-              </form>
-
-              <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
-                <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
-              </form>
-            <% } else { %>
-              <span class="small-note">Nur Ansicht</span>
-            <% } %>
-          </div>
-        </div>
-
-        <div class="table-row" style="grid-template-columns: 1fr;">
-          <div style="padding:0 14px 12px;">
-            <div class="card" style="margin-top:10px;">
-              <div class="row">
-                <div style="font-weight:950;">Details</div>
-                <div class="spacer"></div>
-                <a class="btn btn-sm btn-ghost" href="/inventory">Lager</a>
-                <% if (!isShop) { %>
-                  <a class="btn btn-sm btn-ghost" href="/production">Produktion</a>
-                  <a class="btn btn-sm btn-ghost" href="/activity">Aktivität</a>
-                <% } %>
+        <a class="nav-item <%= isSel?'active':'' %>" style="text-decoration:none;"
+           href="<%= buildLink('order='+esc(o.id)) %>">
+          <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+            <div class="row" style="justify-content:space-between;">
+              <div style="font-weight:950;">
+                <%= (o.channel==="B2B" ? (o.customerName || "B2B") : (o.shopId || "Filiale")) %>
               </div>
-
-              <div class="mt-3">
-                <div class="small-note"><strong>Notiz:</strong> <%= o.note ? o.note : "-" %></div>
-              </div>
-
-              <div class="mt-3">
-                <div class="small-note"><strong>Positionen:</strong></div>
-                <% if (o.items && o.items.length) { %>
-                  <div class="mt-2" style="display:grid; gap:6px;">
-                    <% for (var k=0; k<o.items.length; k++) { %>
-                      <div class="small-note"><%= o.items[k].coffeeName %> — <strong><%= o.items[k].kg %> kg</strong></div>
-                    <% } %>
-                  </div>
-                <% } else { %>
-                  <div class="small-note">Keine Positionen</div>
-                <% } %>
-              </div>
-
-              <% if (isShop) { %>
-                <div class="mt-3 small-note">
-                  <strong>Hinweis:</strong> Freigabe, Produktion und Auslieferung werden von der Rösterei bearbeitet.
-                </div>
-              <% } %>
+              <span class="<%= badge(o.status) %>"><span class="dot"></span><%= o.status %></span>
+            </div>
+            <div class="small-note mono">
+              <%= o.deliveryDate %> · <%= (o.items||[]).length %> Pos · <%= o.id %>
             </div>
           </div>
-        </div>
+        </a>
       <% } %>
     </div>
   </div>
+
+  <!-- RIGHT -->
+  <div class="card">
+    <h2>Editor</h2>
+    <p class="small-note"><%= shopMode ? "Filiale: Bestellung anlegen & Status verfolgen." : "Admin: anlegen, freigeben, liefern." %></p>
+
+    <% if (!selectedOrder) { %>
+      <div class="card mt-3">
+        <h2>Neue Bestellung</h2>
+        <form id="orderForm" method="POST" action="/actions/orders/create">
+          <input type="hidden" name="payload" id="payload" value="" />
+
+          <div style="display:grid; gap:10px;">
+            <div class="row" style="gap:10px;">
+              <% if (!shopMode) { %>
+                <select class="select" id="channel" style="flex:1;">
+                  <option value="FILIALE">Kanal: Filiale</option>
+                  <option value="B2B">Kanal: B2B</option>
+                </select>
+              <% } else { %>
+                <div class="badge ok"><span class="dot"></span>FILIALE</div>
+              <% } %>
+
+              <input class="input" id="deliveryDate" type="date" style="width:220px;" />
+            </div>
+
+            <% if (!shopMode) { %>
+              <div class="row" style="gap:10px;">
+                <select class="select" id="shopId" style="flex:1;">
+                  <option value="">Filiale wählen</option>
+                  <% for (var s=0;s<shops.length;s++) { %>
+                    <option value="<%= shops[s].id %>"><%= shops[s].name %> (<%= shops[s].id %>)</option>
+                  <% } %>
+                </select>
+
+                <select class="select" id="b2bCustomer" style="flex:1; display:none;">
+                  <option value="">B2B Kunde wählen</option>
+                  <% for (var b=0;b<b2bCustomers.length;b++) { %>
+                    <option value="<%= b2bCustomers[b].name %>"><%= b2bCustomers[b].name %></option>
+                  <% } %>
+                </select>
+              </div>
+            <% } else { %>
+              <div class="small-note">Filiale: <span class="mono"><%= shopId %></span></div>
+            <% } %>
+
+            <input class="input" id="customerName" placeholder="B2B Kunde (falls B2B)" style="display:none;" />
+            <input class="input" id="note" placeholder="Notiz (optional)" />
+
+            <div class="card">
+              <div class="row" style="justify-content:space-between;">
+                <h2 style="margin:0;">Positionen</h2>
+                <button class="btn btn-ghost" type="button" onclick="addItem()">+ Position</button>
+              </div>
+              <div class="small-note mt-2">Wählen Sie Sorte und Menge in kg.</div>
+
+              <div id="items" class="mt-3" style="display:grid; gap:10px;"></div>
+            </div>
+
+            <button class="btn btn-primary" type="submit">Bestellung erstellen</button>
+          </div>
+        </form>
+      </div>
+
+    <% } else { %>
+      <div class="card mt-3">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <h2 style="margin:0;">Bestellung</h2>
+            <div class="small-note mono"><%= selectedOrder.id %></div>
+          </div>
+          <span class="<%= badge(selectedOrder.status) %>"><span class="dot"></span><%= selectedOrder.status %></span>
+        </div>
+
+        <div class="mt-3 small-note">
+          Kanal: <span class="mono"><%= selectedOrder.channel %></span> ·
+          Lieferdatum: <span class="mono"><%= selectedOrder.deliveryDate %></span>
+        </div>
+
+        <div class="mt-2 small-note">
+          <%= selectedOrder.channel==="B2B" ? ("Kunde: " + (selectedOrder.customerName||"-")) : ("Filiale: " + (selectedOrder.shopId||"-")) %>
+        </div>
+
+        <% if (selectedOrder.note) { %>
+          <div class="mt-2 small-note">Notiz: <%= selectedOrder.note %></div>
+        <% } %>
+
+        <div class="table-wrap mt-3">
+          <div class="table-head" style="grid-template-columns: 1fr 140px;">
+            <div>Sorte</div>
+            <div class="right">kg</div>
+          </div>
+          <% for (var k=0;k<(selectedOrder.items||[]).length;k++) { %>
+            <div class="table-row" style="grid-template-columns: 1fr 140px;">
+              <div style="font-weight:950;"><%= selectedOrder.items[k].coffeeName %></div>
+              <div class="right mono"><%= selectedOrder.items[k].kg %></div>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="row mt-3" style="gap:10px; flex-wrap:wrap;">
+          <% if (!shopMode) { %>
+            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/approve">
+              <button class="btn btn-ghost" type="submit">Freigeben</button>
+            </form>
+            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/advance">
+              <button class="btn btn-primary" type="submit">Nächster Status</button>
+            </form>
+            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/deliver" onsubmit="return confirm('Ausliefern? (zieht Röstkaffee ab)');">
+              <button class="btn btn-ghost" type="submit">Ausliefern</button>
+            </form>
+            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/delete" onsubmit="return confirm('Bestellung löschen?');">
+              <button class="btn btn-danger" type="submit">Löschen</button>
+            </form>
+          <% } else { %>
+            <div class="small-note">Filialen können Status nur ansehen. (Admin macht Freigabe/Produktion/Auslieferung.)</div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="small-note mt-3">
+      Seitenhinweis: Freigabe zählt für Produktionsbedarf. Ausliefern zieht Röstkaffee ab.
+    </div>
+  </div>
 </div>
+
+<script>
+  const coffees = <%- JSON.stringify(coffees || []) %>;
+  const shopMode = <%- JSON.stringify(!!shopMode) %>;
+  const shopId = <%- JSON.stringify(shopId || "") %>;
+
+  function el(tag, attrs={}, children=[]) {
+    const n = document.createElement(tag);
+    Object.keys(attrs).forEach(k => {
+      if (k === "class") n.className = attrs[k];
+      else if (k === "html") n.innerHTML = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    });
+    (children||[]).forEach(c => n.appendChild(c));
+    return n;
+  }
+
+  function addItem(prefCoffeeId="", prefKg="") {
+    const wrap = el("div", { class: "row", style: "gap:10px; align-items:center;" });
+
+    const sel = el("select", { class: "select", style: "flex:1;" });
+    sel.appendChild(new Option("Sorte wählen", ""));
+    coffees.forEach(c => sel.appendChild(new Option(c.name + " (" + c.id + ")", c.id)));
+    sel.value = prefCoffeeId || "";
+
+    const kg = el("input", { class: "input", type: "number", step: "0.1", min: "0", placeholder: "kg", style: "width:140px;" });
+    if (prefKg) kg.value = prefKg;
+
+    const del = el("button", { class: "btn btn-ghost", type: "button" });
+    del.textContent = "Entfernen";
+    del.onclick = () => wrap.remove();
+
+    wrap.appendChild(sel);
+    wrap.appendChild(kg);
+    wrap.appendChild(del);
+
+    document.getElementById("items").appendChild(wrap);
+  }
+
+  function syncChannelUI() {
+    const ch = document.getElementById("channel");
+    const channel = ch ? ch.value : "FILIALE";
+
+    const shopSel = document.getElementById("shopId");
+    const b2bSel = document.getElementById("b2bCustomer");
+    const b2bName = document.getElementById("customerName");
+
+    if (!shopMode) {
+      if (channel === "B2B") {
+        if (shopSel) shopSel.style.display = "none";
+        if (b2bSel) b2bSel.style.display = "";
+        if (b2bName) b2bName.style.display = "";
+      } else {
+        if (shopSel) shopSel.style.display = "";
+        if (b2bSel) b2bSel.style.display = "none";
+        if (b2bName) b2bName.style.display = "none";
+      }
+    }
+  }
+
+  // init
+  if (document.getElementById("items")) {
+    addItem();
+    addItem();
+  }
+  const channelSel = document.getElementById("channel");
+  if (channelSel) {
+    channelSel.addEventListener("change", syncChannelUI);
+    syncChannelUI();
+  }
+
+  const b2bSel = document.getElementById("b2bCustomer");
+  if (b2bSel) {
+    b2bSel.addEventListener("change", () => {
+      const name = document.getElementById("customerName");
+      if (name && b2bSel.value) name.value = b2bSel.value;
+    });
+  }
+
+  const form = document.getElementById("orderForm");
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      const channel = shopMode ? "FILIALE" : (document.getElementById("channel")?.value || "FILIALE");
+      const date = document.getElementById("deliveryDate")?.value || "";
+      const note = document.getElementById("note")?.value || "";
+
+      let payload = {
+        channel,
+        shopId: shopMode ? shopId : (document.getElementById("shopId")?.value || ""),
+        customerName: (document.getElementById("customerName")?.value || ""),
+        deliveryDate: date,
+        note,
+        items: []
+      };
+
+      // items
+      const rows = Array.from(document.getElementById("items").children || []);
+      rows.forEach(r => {
+        const sel = r.querySelector("select");
+        const kg = r.querySelector("input[type='number']");
+        const coffeeId = sel ? sel.value : "";
+        const kgVal = kg ? Number(kg.value) : 0;
+        if (!coffeeId || !Number.isFinite(kgVal) || kgVal <= 0) return;
+        const opt = sel.options[sel.selectedIndex];
+        const coffeeName = opt ? opt.textContent.replace(/\s*\([^)]+\)\s*$/, "") : coffeeId;
+        payload.items.push({ coffeeId, coffeeName, kg: kgVal });
+      });
+
+      document.getElementById("payload").value = JSON.stringify(payload);
+    });
+  }
+</script>
