@@ -13,10 +13,8 @@ function parseDateToISO(input) {
   const s = cleanText(input);
   if (!s) return new Date().toISOString().slice(0, 10);
 
-  // If already ISO: 2026-02-20
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
 
-  // German: 20.02.2026 or 20/02/2026 or 20-02-2026
   const m = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
   if (m) {
     const dd = m[1].padStart(2, "0");
@@ -25,11 +23,8 @@ function parseDateToISO(input) {
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  // Fallback: try Date parsing (last resort)
   const d = new Date(s);
   if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-
-  // If invalid, use today (and later we can show a nice validation message)
   return new Date().toISOString().slice(0, 10);
 }
 
@@ -38,11 +33,30 @@ function errorRedirect(res, path, msg) {
   return res.redirect(path + qs);
 }
 
+function isShop(req) {
+  const u = req.session && req.session.user;
+  return u && u.role === "SHOP";
+}
+function shopId(req) {
+  const u = req.session && req.session.user;
+  return u ? u.shopId : null;
+}
+
 // ORDERS
 exports.createOrder = async (req, res) => {
-  const channel = cleanText(req.body.channel) || "FILIALE";
-  const shopId = cleanText(req.body.shopId) || null;
-  const customerName = cleanText(req.body.customerName) || null;
+  const shopMode = isShop(req);
+
+  // Enforce role constraints
+  let channel = cleanText(req.body.channel) || "FILIALE";
+  let shop = cleanText(req.body.shopId) || null;
+  let customerName = cleanText(req.body.customerName) || null;
+
+  if (shopMode) {
+    channel = "FILIALE";
+    shop = shopId(req);
+    customerName = null;
+    if (!shop) return errorRedirect(res, "/orders", "Filiale ist nicht korrekt zugeordnet.");
+  }
 
   const deliveryDate = parseDateToISO(req.body.deliveryDate);
   const note = cleanText(req.body.note);
@@ -61,16 +75,14 @@ exports.createOrder = async (req, res) => {
     return errorRedirect(res, "/orders", "Bestellung muss mindestens 1 Position enthalten.");
   }
 
-  if (channel === "FILIALE" && !shopId) {
-    return errorRedirect(res, "/orders", "Bitte Filiale auswählen.");
-  }
-  if (channel === "B2B" && !customerName) {
-    return errorRedirect(res, "/orders", "Bitte B2B Kundenname eintragen.");
+  if (!shopMode) {
+    if (channel === "FILIALE" && !shop) return errorRedirect(res, "/orders", "Bitte Filiale auswählen.");
+    if (channel === "B2B" && !customerName) return errorRedirect(res, "/orders", "Bitte B2B Kundenname eintragen.");
   }
 
   await store.createOrder({
     channel,
-    shopId: channel === "FILIALE" ? shopId : null,
+    shopId: channel === "FILIALE" ? shop : null,
     customerName: channel === "B2B" ? customerName : null,
     deliveryDate,
     items,
@@ -124,7 +136,6 @@ exports.deliverOrder = async (req, res) => {
   const id = req.params.id;
   const order = await store.getOrderById(id);
   if (!order) return res.redirect("/orders");
-
   if (order.status === "AUSGELIEFERT") return errorRedirect(res, "/orders", "Bereits ausgeliefert.");
 
   const ok = await store.consumeRoastedForOrder(order);
@@ -134,7 +145,7 @@ exports.deliverOrder = async (req, res) => {
   res.redirect("/orders");
 };
 
-// INVENTORY
+// INVENTORY (admin-only route already)
 exports.applyInventoryChange = async (req, res) => {
   const type = cleanText(req.body.type);
   const coffeeId = cleanText(req.body.coffeeId);
@@ -153,7 +164,7 @@ exports.applyInventoryChange = async (req, res) => {
   res.redirect("/inventory");
 };
 
-// BATCHES
+// BATCHES (admin-only route already)
 exports.createBatch = async (req, res) => {
   const coffeeId = cleanText(req.body.coffeeId);
   const kg = num(req.body.kg);
