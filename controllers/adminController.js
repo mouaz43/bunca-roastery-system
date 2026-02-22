@@ -19,7 +19,6 @@ function err(res, msg, extra = {}) {
 }
 
 function makeTempPassword() {
-  // readable + safe enough for temp (you can improve later)
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#";
   let out = "";
   for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)];
@@ -50,26 +49,17 @@ exports.listUsers = async () => {
 exports.createUser = async (req, res) => {
   const name = clean(req.body.name);
   const email = clean(req.body.email).toLowerCase();
-  const role = clean(req.body.role); // ADMIN | SHOP
+  const role = clean(req.body.role);
   const shopId = clean(req.body.shopId) || null;
   const password = clean(req.body.password);
 
-  if (!name || !email || !role || !password) {
-    return err(res, "Bitte alle Pflichtfelder ausfüllen.");
-  }
+  if (!name || !email || !role || !password) return err(res, "Bitte alle Pflichtfelder ausfüllen.");
+  if (!["ADMIN", "SHOP"].includes(role)) return err(res, "Ungültige Rolle.");
 
-  if (!["ADMIN", "SHOP"].includes(role)) {
-    return err(res, "Ungültige Rolle.");
-  }
-
-  if (role === "SHOP" && !shopId) {
-    return err(res, "Für Filiale bitte Shop auswählen.");
-  }
+  if (role === "SHOP" && !shopId) return err(res, "Für Filiale bitte Shop auswählen.");
 
   const existing = await db.query("SELECT id FROM users WHERE email=$1", [email]);
-  if (existing.rows.length) {
-    return err(res, "E-Mail existiert bereits.");
-  }
+  if (existing.rows.length) return err(res, "E-Mail existiert bereits.");
 
   const hash = await bcrypt.hash(password, 12);
 
@@ -86,15 +76,12 @@ exports.deleteUser = async (req, res) => {
   const id = clean(req.body.id);
   if (!id) return err(res, "User ID fehlt.");
 
-  // Safety: prevent deleting the last admin
   const target = await db.query(`SELECT role, email FROM users WHERE id=$1`, [id]);
   if (!target.rows.length) return err(res, "Benutzer nicht gefunden.");
 
   if (target.rows[0].role === "ADMIN") {
     const admins = await countAdmins();
-    if (admins <= 1) {
-      return err(res, "Letzter Admin kann nicht gelöscht werden.");
-    }
+    if (admins <= 1) return err(res, "Letzter Admin kann nicht gelöscht werden.");
   }
 
   await db.query(`DELETE FROM users WHERE id=$1`, [id]);
@@ -112,7 +99,5 @@ exports.resetPassword = async (req, res) => {
   const hash = await bcrypt.hash(temp, 12);
 
   await db.query(`UPDATE users SET password_hash=$1 WHERE id=$2`, [hash, id]);
-
-  // Show the temp password in UI (one-time display)
   return ok(res, `Passwort zurückgesetzt. Temporäres Passwort für ${target.rows[0].email}: ${temp}`);
 };
