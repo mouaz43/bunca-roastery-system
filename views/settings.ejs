@@ -1,17 +1,15 @@
 <%
-  var queryObj = (typeof query !== "undefined" && query) ? query : {};
-  var tab = queryObj.tab || "users";
-  if (tab !== "users" && tab !== "coffee" && tab !== "shop") tab = "users";
-
-  var userError = queryObj.user_error || null;
-  var userOk = queryObj.user_ok || null;
-  var masterError = queryObj.master_error || null;
-  var masterOk = queryObj.master_ok || null;
+  var q = (typeof query !== "undefined" && query) ? query : {};
+  var tab = q.tab || "users";
 
   var users = (typeof users !== "undefined" && users) ? users : [];
-  var allCoffees = (typeof allCoffees !== "undefined" && allCoffees) ? allCoffees : ((typeof coffees !== "undefined") ? coffees : []);
-  var allShops = (typeof allShops !== "undefined" && allShops) ? allShops : ((typeof shops !== "undefined") ? shops : []);
-  var shopsList = (typeof shops !== "undefined" && shops) ? shops : allShops;
+  var b2b = (typeof b2b !== "undefined" && b2b) ? b2b : [];
+  var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
+  var shops = (typeof shops !== "undefined" && shops) ? shops : [];
+
+  var userOk = q.user_ok || null, userError = q.user_error || null;
+  var masterOk = q.master_ok || null, masterError = q.master_error || null;
+  var b2bOk = q.b2b_ok || null, b2bError = q.b2b_error || null;
 
   function link(t){ return "/settings?tab=" + encodeURIComponent(t); }
 %>
@@ -19,57 +17,31 @@
 <div class="card-grid">
   <div class="card">
     <h2>Einstellungen</h2>
-    <p class="small-note">Benutzerverwaltung + Stammdaten. Admin-only.</p>
+    <p class="small-note">Alles an einem Ort: Benutzer, Stammdaten, B2B Kunden.</p>
   </div>
   <div class="card">
-    <h2>Info</h2>
-    <p class="small-note">User-Reset zeigt dir ein temporäres Passwort (einmalig).</p>
+    <h2>Status</h2>
+    <p class="small-note">Coffees: <strong><%= coffees.length %></strong> · Shops: <strong><%= shops.length %></strong> · Users: <strong><%= users.length %></strong></p>
   </div>
 </div>
 
-<% if (masterError) { %>
-  <div class="card" style="border-color: rgba(255,77,77,.35);">
-    <h2>Stammdaten Fehler</h2>
-    <p><%= masterError %></p>
-  </div>
-<% } %>
-<% if (masterOk) { %>
-  <div class="card" style="border-color: rgba(38,201,122,.35);">
-    <h2>Stammdaten OK</h2>
-    <p><%= masterOk %></p>
-  </div>
-<% } %>
+<% if (userError) { %><div class="card" style="border-color: rgba(255,77,77,.35);"><h2>User Fehler</h2><p><%= userError %></p></div><% } %>
+<% if (userOk) { %><div class="card" style="border-color: rgba(38,201,122,.35);"><h2>User OK</h2><p><%= userOk %></p></div><% } %>
 
-<% if (userError) { %>
-  <div class="card" style="border-color: rgba(255,77,77,.35);">
-    <h2>Benutzer Fehler</h2>
-    <p><%= userError %></p>
-  </div>
-<% } %>
-<% if (userOk) { %>
-  <div class="card" style="border-color: rgba(38,201,122,.35);">
-    <h2>Benutzer OK</h2>
-    <p><%= userOk %></p>
-  </div>
-<% } %>
+<% if (masterError) { %><div class="card" style="border-color: rgba(255,77,77,.35);"><h2>Stammdaten Fehler</h2><p><%= masterError %></p></div><% } %>
+<% if (masterOk) { %><div class="card" style="border-color: rgba(38,201,122,.35);"><h2>Stammdaten OK</h2><p><%= masterOk %></p></div><% } %>
+
+<% if (b2bError) { %><div class="card" style="border-color: rgba(255,77,77,.35);"><h2>B2B Fehler</h2><p><%= b2bError %></p></div><% } %>
+<% if (b2bOk) { %><div class="card" style="border-color: rgba(38,201,122,.35);"><h2>B2B OK</h2><p><%= b2bOk %></p></div><% } %>
 
 <div class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Admin Center</div>
-      <div class="section-sub">Benutzer / Kaffeesorten / Filialen</div>
-    </div>
-  </div>
-
   <div class="section-body">
     <div class="filterbar">
       <div class="filter-left" style="display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn btn-sm <%= tab==='users'?'btn-primary':'btn-ghost' %>" href="<%= link('users') %>">Benutzer</a>
         <a class="btn btn-sm <%= tab==='coffee'?'btn-primary':'btn-ghost' %>" href="<%= link('coffee') %>">Kaffeesorten</a>
-        <a class="btn btn-sm <%= tab==='shop'?'btn-primary':'btn-ghost' %>" href="<%= link('shop') %>">Filialen</a>
-      </div>
-      <div class="filter-right">
-        <span class="badge ok"><span class="dot"></span>Admin</span>
+        <a class="btn btn-sm <%= tab==='shops'?'btn-primary':'btn-ghost' %>" href="<%= link('shops') %>">Filialen</a>
+        <a class="btn btn-sm <%= tab==='b2b'?'btn-primary':'btn-ghost' %>" href="<%= link('b2b') %>">B2B Kunden</a>
       </div>
     </div>
 
@@ -80,19 +52,19 @@
         <form method="POST" action="/actions/users/create" class="mt-3">
           <div class="filterbar">
             <div class="filter-left">
-              <input class="input" name="name" placeholder="Name" style="min-width:200px;" />
-              <input class="input" name="email" placeholder="E-Mail" style="min-width:260px;" />
+              <input class="input" name="name" placeholder="Name" style="min-width:180px;" />
+              <input class="input" name="email" placeholder="E-Mail" style="min-width:240px;" />
               <select class="select" name="role">
-                <option value="SHOP">Rolle: Filiale</option>
-                <option value="ADMIN">Rolle: Admin</option>
+                <option value="SHOP">SHOP</option>
+                <option value="ADMIN">ADMIN</option>
               </select>
-              <select class="select" name="shopId" style="min-width:240px;">
-                <option value="">Filiale (nur bei Filiale)</option>
-                <% for (var i=0;i<shopsList.length;i++) { %>
-                  <option value="<%= shopsList[i].id %>"><%= shopsList[i].name %> (<%= shopsList[i].id %>)</option>
+              <select class="select" name="shopId" style="min-width:220px;">
+                <option value="">Filiale (nur SHOP)</option>
+                <% for (var i=0;i<shops.length;i++) { %>
+                  <option value="<%= shops[i].id %>"><%= shops[i].name %> (<%= shops[i].id %>)</option>
                 <% } %>
               </select>
-              <input class="input" name="password" placeholder="Passwort" style="min-width:200px;" />
+              <input class="input" name="password" placeholder="Passwort" style="min-width:180px;" />
             </div>
             <div class="filter-right">
               <button class="btn btn-primary" type="submit">Erstellen</button>
@@ -104,34 +76,21 @@
       <div class="card mt-3">
         <h2>Benutzerliste</h2>
         <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 1fr 140px 160px 260px;">
-            <div>Name</div>
-            <div>E-Mail</div>
-            <div>Rolle</div>
-            <div>Filiale</div>
-            <div class="right">Aktionen</div>
+          <div class="table-head" style="grid-template-columns: 1fr 1fr 120px 140px 260px;">
+            <div>Name</div><div>E-Mail</div><div>Rolle</div><div>Shop</div><div class="right">Aktionen</div>
           </div>
-
-          <% if (!users.length) { %>
-            <div class="table-row" style="grid-template-columns: 1fr;">
-              <div class="small-note">Keine Benutzer gefunden.</div>
-            </div>
-          <% } %>
-
           <% for (var u=0; u<users.length; u++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 1fr 140px 160px 260px;">
+            <div class="table-row" style="grid-template-columns: 1fr 1fr 120px 140px 260px;">
               <div style="font-weight:950;"><%= users[u].name %></div>
               <div class="mono small-note"><%= users[u].email %></div>
-              <div><span class="badge"><span class="dot"></span><%= users[u].role %></span></div>
+              <div><%= users[u].role %></div>
               <div class="mono"><%= users[u].shopId || "-" %></div>
-
               <div class="row-actions" style="justify-content:flex-end;">
                 <form method="POST" action="/actions/users/reset-password" onsubmit="return confirm('Passwort zurücksetzen?');">
                   <input type="hidden" name="id" value="<%= users[u].id %>" />
                   <button class="btn btn-sm btn-ghost" type="submit">Reset</button>
                 </form>
-
-                <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer wirklich löschen?');">
+                <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer löschen?');">
                   <input type="hidden" name="id" value="<%= users[u].id %>" />
                   <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
                 </form>
@@ -139,28 +98,81 @@
             </div>
           <% } %>
         </div>
-
-        <div class="small-note mt-3">
-          Reset erzeugt ein temporäres Passwort und zeigt es oben an (user_ok).
-        </div>
       </div>
 
     <% } else if (tab === 'coffee') { %>
 
       <div class="card mt-3">
-        <h2>Kaffeesorten</h2>
-        <p class="small-note">Diese Liste zeigt alles (active + hidden). Bearbeiten im Coffee-Editor ist der nächste Schritt, wenn du willst.</p>
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 220px 1fr 120px;">
-            <div>ID</div>
-            <div>Name</div>
-            <div class="right">Pack</div>
+        <h2>Kaffeesorte hinzufügen</h2>
+        <form method="POST" action="/actions/masters/coffee/create" class="mt-3">
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="id" placeholder="ID (z.B. ESPRESSO)" style="min-width:200px;" />
+              <input class="input" name="name" placeholder="Name" style="min-width:260px;" />
+              <input class="input" name="packDefaultKg" placeholder="Pack kg" style="min-width:140px;" />
+            </div>
+            <div class="filter-right">
+              <button class="btn btn-primary" type="submit">Hinzufügen</button>
+            </div>
           </div>
-          <% for (var c=0;c<allCoffees.length;c++) { %>
-            <div class="table-row" style="grid-template-columns: 220px 1fr 120px;">
-              <div class="mono"><%= allCoffees[c].id %></div>
-              <div style="font-weight:950;"><%= allCoffees[c].name %></div>
-              <div class="right mono"><%= allCoffees[c].packDefaultKg || 1 %></div>
+        </form>
+      </div>
+
+      <div class="card mt-3">
+        <h2>Liste</h2>
+        <div class="table-wrap mt-3">
+          <div class="table-head" style="grid-template-columns: 200px 1fr 120px 220px;">
+            <div>ID</div><div>Name</div><div class="right">Pack</div><div class="right">Aktionen</div>
+          </div>
+          <% for (var c=0;c<coffees.length;c++) { %>
+            <div class="table-row" style="grid-template-columns: 200px 1fr 120px 220px;">
+              <div class="mono"><%= coffees[c].id %></div>
+              <div style="font-weight:950;"><%= coffees[c].name %></div>
+              <div class="right mono"><%= coffees[c].packDefaultKg || 1 %></div>
+              <div class="row-actions" style="justify-content:flex-end;">
+                <form method="POST" action="/actions/masters/coffee/delete" onsubmit="return confirm('Sorte löschen?');">
+                  <input type="hidden" name="id" value="<%= coffees[c].id %>" />
+                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                </form>
+              </div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+    <% } else if (tab === 'shops') { %>
+
+      <div class="card mt-3">
+        <h2>Filiale hinzufügen</h2>
+        <form method="POST" action="/actions/masters/shop/create" class="mt-3">
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="id" placeholder="ID (z.B. CITY)" style="min-width:200px;" />
+              <input class="input" name="name" placeholder="Name" style="min-width:320px;" />
+            </div>
+            <div class="filter-right">
+              <button class="btn btn-primary" type="submit">Hinzufügen</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="card mt-3">
+        <h2>Liste</h2>
+        <div class="table-wrap mt-3">
+          <div class="table-head" style="grid-template-columns: 200px 1fr 220px;">
+            <div>ID</div><div>Name</div><div class="right">Aktionen</div>
+          </div>
+          <% for (var s=0;s<shops.length;s++) { %>
+            <div class="table-row" style="grid-template-columns: 200px 1fr 220px;">
+              <div class="mono"><%= shops[s].id %></div>
+              <div style="font-weight:950;"><%= shops[s].name %></div>
+              <div class="row-actions" style="justify-content:flex-end;">
+                <form method="POST" action="/actions/masters/shop/delete" onsubmit="return confirm('Filiale löschen? (inkl. Benutzer)');">
+                  <input type="hidden" name="id" value="<%= shops[s].id %>" />
+                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                </form>
+              </div>
             </div>
           <% } %>
         </div>
@@ -169,16 +181,41 @@
     <% } else { %>
 
       <div class="card mt-3">
-        <h2>Filialen</h2>
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 220px 1fr;">
-            <div>ID</div>
-            <div>Name</div>
+        <h2>B2B Kunde erstellen</h2>
+        <form method="POST" action="/actions/b2b/create" class="mt-3">
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="name" placeholder="Name" style="min-width:220px;" />
+              <input class="input" name="email" placeholder="E-Mail" style="min-width:240px;" />
+              <input class="input" name="phone" placeholder="Telefon" style="min-width:180px;" />
+              <input class="input" name="address" placeholder="Adresse" style="min-width:260px;" />
+              <input class="input" name="note" placeholder="Notiz" style="min-width:260px;" />
+            </div>
+            <div class="filter-right">
+              <button class="btn btn-primary" type="submit">Erstellen</button>
+            </div>
           </div>
-          <% for (var s=0;s<allShops.length;s++) { %>
-            <div class="table-row" style="grid-template-columns: 220px 1fr;">
-              <div class="mono"><%= allShops[s].id %></div>
-              <div style="font-weight:950;"><%= allShops[s].name %></div>
+        </form>
+      </div>
+
+      <div class="card mt-3">
+        <h2>B2B Liste</h2>
+        <div class="table-wrap mt-3">
+          <div class="table-head" style="grid-template-columns: 1fr 1fr 160px 1fr 220px;">
+            <div>Name</div><div>E-Mail</div><div>Telefon</div><div>Adresse</div><div class="right">Aktionen</div>
+          </div>
+          <% for (var k=0;k<b2b.length;k++) { %>
+            <div class="table-row" style="grid-template-columns: 1fr 1fr 160px 1fr 220px;">
+              <div style="font-weight:950;"><%= b2b[k].name %></div>
+              <div class="mono small-note"><%= b2b[k].email %></div>
+              <div class="mono"><%= b2b[k].phone %></div>
+              <div class="small-note"><%= b2b[k].address %></div>
+              <div class="row-actions" style="justify-content:flex-end;">
+                <form method="POST" action="/actions/b2b/delete" onsubmit="return confirm('B2B Kunde löschen?');">
+                  <input type="hidden" name="id" value="<%= b2b[k].id %>" />
+                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                </form>
+              </div>
             </div>
           <% } %>
         </div>
