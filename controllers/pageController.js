@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const store = require("../data/store");
 const db = require("../db");
 const adminController = require("./adminController");
+
 let b2bController = null;
 try { b2bController = require("./b2bController"); } catch (_) { b2bController = null; }
 
@@ -24,38 +25,17 @@ function q(req, key, fallback = "") {
 function getUser(req) {
   return req.session && req.session.user ? req.session.user : null;
 }
-
 function isAdmin(req) {
   const u = getUser(req);
   return !!u && u.role === "ADMIN";
 }
-
 function isShop(req) {
   const u = getUser(req);
   return !!u && u.role === "SHOP";
 }
-
 function getShopId(req) {
   const u = getUser(req);
   return u ? u.shopId : null;
-}
-
-function countByStatus(orders) {
-  const statuses = ["EINGEGANGEN", "FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT", "AUSGELIEFERT"];
-  const counts = {};
-  for (const s of statuses) counts[s] = 0;
-  for (const o of orders || []) {
-    const st = String(o.status || "");
-    if (counts[st] !== undefined) counts[st] += 1;
-  }
-  return counts;
-}
-
-function nextDeliveryDate(orders) {
-  const open = (orders || []).filter(o => String(o.status) !== "AUSGELIEFERT" && o.deliveryDate);
-  if (!open.length) return null;
-  open.sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)));
-  return open[0].deliveryDate;
 }
 
 function sortOrdersSmart(list) {
@@ -74,8 +54,8 @@ function sortOrdersSmart(list) {
     if (ra !== rb) return ra - rb;
 
     const da = String(a.deliveryDate || "9999-99-99");
-    const db = String(b.deliveryDate || "9999-99-99");
-    if (da !== db) return da.localeCompare(db);
+    const dbb = String(b.deliveryDate || "9999-99-99");
+    if (da !== dbb) return da.localeCompare(dbb);
 
     const ca = new Date(a.createdAt || 0).getTime();
     const cb = new Date(b.createdAt || 0).getTime();
@@ -83,14 +63,10 @@ function sortOrdersSmart(list) {
   });
 }
 
-/* =========================
-   AUTH PAGES
-========================= */
+/* AUTH */
 exports.renderLogin = async (req, res) => {
   const msg = q(req, "msg", "");
-  res.render("login", Object.assign(base("login", "Anmelden", "Bitte melden Sie sich an."), {
-    msg
-  }));
+  res.render("login", Object.assign(base("login", "Anmelden", "Bitte melden Sie sich an."), { msg }));
 };
 
 exports.handleLogin = async (req, res) => {
@@ -106,22 +82,13 @@ exports.handleLogin = async (req, res) => {
      LIMIT 1`,
     [email]
   );
-
   if (!r.rows.length) return res.redirect("/login?msg=" + encodeURIComponent("Benutzer nicht gefunden."));
 
   const u = r.rows[0];
   const ok = await bcrypt.compare(password, u.password_hash);
   if (!ok) return res.redirect("/login?msg=" + encodeURIComponent("Falsches Passwort."));
 
-  // Session user object used by middleware/auth + UI
-  req.session.user = {
-    id: u.id,
-    email: u.email,
-    name: u.name,
-    role: u.role,
-    shopId: u.shop_id
-  };
-
+  req.session.user = { id: u.id, email: u.email, name: u.name, role: u.role, shopId: u.shop_id };
   return res.redirect("/dashboard");
 };
 
@@ -129,9 +96,7 @@ exports.handleLogout = async (req, res) => {
   req.session.destroy(() => res.redirect("/login?msg=" + encodeURIComponent("Abgemeldet.")));
 };
 
-/* =========================
-   DASHBOARD
-========================= */
+/* DASHBOARD (keep simple) */
 exports.renderDashboard = async (req, res) => {
   const shopMode = isShop(req);
   const shopId = getShopId(req);
@@ -143,67 +108,34 @@ exports.renderDashboard = async (req, res) => {
     ? allOrders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""))
     : allOrders;
 
-  let demandCount = 0;
-  let batchCount = 0;
-  let activityCount = 0;
-
-  if (!shopMode) {
-    const demand = await store.computeRoastDemand();
-    const batches = await store.listBatches();
-    const activity = await store.listActivity();
-    demandCount = demand.length;
-    batchCount = batches.length;
-    activityCount = activity.length;
-  }
-
-  const shopStatusCounts = shopMode ? countByStatus(orders) : null;
-  const shopNextDelivery = shopMode ? nextDeliveryDate(orders) : null;
-
   res.render("dashboard", Object.assign(base("dashboard", "Dashboard", shopMode ? "Filial-Übersicht" : "Übersicht und Schnellaktionen"), {
     ordersCount: orders.length,
-    demandCount,
-    batchCount,
-    activityCount,
     inventoryUpdatedAt: inv.updatedAt,
-
     shopMode,
-    shopId,
-    shopStatusCounts,
-    shopNextDelivery,
-
-    hintTitle: "Seitenhinweis",
-    hintLines: shopMode
-      ? [
-          "Sie sehen nur Bestellungen Ihrer Filiale.",
-          "Sie können Bestellungen anlegen und den Status verfolgen.",
-          "Freigabe, Produktion und Auslieferung übernimmt die Rösterei."
-        ]
-      : [
-          "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
-          "Aktivität zeigt jede Änderung."
-        ]
+    shopId
   }));
 };
 
-/* =========================
-   ORDERS
-========================= */
+/* ORDERS (PRO) */
 exports.renderOrders = async (req, res) => {
+  const u = getUser(req);
   const shopMode = isShop(req);
   const shopId = getShopId(req);
 
-  const all = await store.listOrders();
+  const okMsg = q(req, "ok", "");
+  const errMsg = q(req, "err", "");
 
   const search = q(req, "q", "");
   const status = q(req, "status", "ALL");
   const channel = q(req, "channel", "ALL");
   const shop = q(req, "shop", "ALL");
   const range = q(req, "range", "30");
+  const selectedId = q(req, "order", "");
 
   const days = Number(range);
   const since = Number.isFinite(days) ? Date.now() - days * 24 * 60 * 60 * 1000 : 0;
 
-  let orders = all;
+  let orders = await store.listOrders();
 
   if (shopMode) {
     orders = orders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""));
@@ -229,56 +161,40 @@ exports.renderOrders = async (req, res) => {
 
   orders = sortOrdersSmart(orders);
 
+  const selectedOrder = selectedId ? await store.getOrderById(selectedId) : null;
+  const b2bCustomers = (b2bController && isAdmin(req)) ? await b2bController.list() : [];
+
   res.render("orders", Object.assign(base("orders", "Bestellungen", shopMode ? "Nur Ihre Filiale" : "Filiale und B2B Bestellungen verwalten"), {
-    orders,
-    shops: store.SHOPS,
+    user: u,
+    shopMode,
+    shopId,
+
     coffees: store.COFFEES,
-    filters: {
-      search,
-      status,
-      channel: shopMode ? "FILIALE" : channel,
-      shop: shopMode ? String(shopId || "ALL") : shop,
-      range
-    },
-    hintTitle: "Seitenhinweis",
-    hintLines: shopMode
-      ? [
-          "Sie können Bestellungen nur für Ihre Filiale anlegen.",
-          "Statusverfolgung ist für Filialen sichtbar.",
-          "Freigabe und Auslieferung übernimmt die Rösterei."
-        ]
-      : [
-          "Freigeben = zählt für Produktion.",
-          "Ausliefern = zieht Röstkaffee ab."
-        ]
+    shops: store.SHOPS,
+    b2bCustomers,
+
+    orders,
+    selectedOrder,
+
+    filters: { search, status, channel, shop, range },
+    okMsg,
+    errMsg
   }));
 };
 
-/* =========================
-   ADMIN PAGES
-========================= */
+/* ADMIN PAGES */
 exports.renderProduction = async (req, res) => {
   if (!isAdmin(req)) return res.status(403).send("Nicht erlaubt.");
-
   const inv = await store.getInventory();
   const roastDemand = await store.computeRoastDemand();
   const batches = await store.listBatches();
-
-  res.render("production", Object.assign(base("production", "Produktion", "Bedarf, Lagerabgleich und Chargen"), {
-    inventory: inv,
-    roastDemand,
-    batches
-  }));
+  res.render("production", Object.assign(base("production", "Produktion", "Bedarf, Lagerabgleich und Chargen"), { inventory: inv, roastDemand, batches }));
 };
 
 exports.renderInventory = async (req, res) => {
   if (!isAdmin(req)) return res.status(403).send("Nicht erlaubt.");
-
   const inv = await store.getInventory();
-  res.render("inventory", Object.assign(base("inventory", "Lager", "Bestände verwalten und Engpässe vermeiden"), {
-    inventory: inv,
-    coffees: store.COFFEES
-  }));
+  res.render("inventory", Object.assign(base("inventory", "Lager", "Bestände verwalten und Engpässe vermeiden"), { inventory: inv, coffees: store.COFFEES }));
 };
 
 exports.renderAnalytics = async (req, res) => {
@@ -289,21 +205,13 @@ exports.renderAnalytics = async (req, res) => {
 exports.renderActivity = async (req, res) => {
   if (!isAdmin(req)) return res.status(403).send("Nicht erlaubt.");
   const activity = await store.listActivity();
-  res.render("activity", Object.assign(base("activity", "Aktivität", "Protokoll aller Aktionen"), {
-    activity,
-    query: req.query
-  }));
+  res.render("activity", Object.assign(base("activity", "Aktivität", "Protokoll aller Aktionen"), { activity, query: req.query }));
 };
 
-/* =========================
-   SETTINGS (ADMIN)
-========================= */
 exports.renderSettings = async (req, res) => {
   if (!isAdmin(req)) return res.status(403).send("Nicht erlaubt.");
-
   const users = await adminController.listUsers();
   const b2b = b2bController ? await b2bController.list() : [];
-
   res.render("settings", Object.assign(base("settings", "Einstellungen", "Stammdaten und Benutzerverwaltung"), {
     coffees: store.COFFEES,
     shops: store.SHOPS,
