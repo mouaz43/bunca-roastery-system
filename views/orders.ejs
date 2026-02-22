@@ -12,7 +12,6 @@
 
   var shopMode = !!(typeof shopMode !== "undefined" && shopMode);
   var shopId = (typeof shopId !== "undefined" && shopId) ? shopId : "";
-  var user = (typeof user !== "undefined" && user) ? user : null;
 
   function esc(s){ return encodeURIComponent(String(s||"")); }
 
@@ -48,11 +47,6 @@
   function whoLabel(o){
     if (o.channel==="B2B") return (o.customerName || "B2B Kunde");
     return (o.shopId || "Filiale");
-  }
-
-  function toFixed1(n){
-    n = Number(n||0);
-    return (Math.round(n*10)/10).toFixed(1);
   }
 %>
 
@@ -90,45 +84,47 @@
     background: rgba(255,255,255,.55);
     padding:12px;
   }
-  .collapse summary{ cursor:pointer; font-weight:950; list-style:none; }
+  .collapse summary{
+    cursor:pointer;
+    font-weight:950;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
   .collapse summary::-webkit-details-marker{ display:none; }
+  .chev{ opacity:.55; font-weight:950; }
 
   .field{ display:grid; gap:6px; }
   .field .label{ font-size:12px; font-weight:900; opacity:.75; }
   .stack{ display:grid; gap:10px; }
 
-  /* Compact item composer */
-  .composer{
-    border:1px solid rgba(0,0,0,.06);
-    background: rgba(255,255,255,.55);
-    border-radius:18px;
-    padding:12px;
+  /* Fixed assortment list (shop) */
+  .assort-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
   }
-  .composer-row{
+  .assort-grid{
+    display:grid; gap:10px; margin-top:12px;
+  }
+  .assort-row{
     display:grid;
-    grid-template-columns: 1fr 140px 160px;
+    grid-template-columns: 1fr 140px;
     gap:10px;
     align-items:center;
-  }
-  @media (max-width: 700px){
-    .composer-row{ grid-template-columns: 1fr; }
-  }
-
-  /* Selected items list */
-  .item-list{ display:grid; gap:10px; }
-  .item-chip{
+    padding:10px;
     border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;
     background: rgba(255,255,255,.65);
-    border-radius:18px;
-    padding:12px;
   }
-  .item-chip .top{
-    display:flex; justify-content:space-between; gap:10px; align-items:flex-start;
+  @media (max-width:700px){
+    .assort-row{ grid-template-columns: 1fr; }
   }
-  .item-chip .name{ font-weight:950; }
-  .item-chip .meta{ font-size:12px; opacity:.7; }
-  .item-chip .actions{
-    display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;
+  .assort-name{ font-weight:950; }
+  .assort-meta{ font-size:12px; opacity:.7; margin-top:2px; }
+  .qty{
+    height:46px;
+    border-radius:16px;
   }
 
   .sticky-bar{
@@ -183,7 +179,7 @@
     <div class="row" style="justify-content:space-between; align-items:flex-start;">
       <div>
         <h2 style="margin:0;">Bestellungen</h2>
-        <div class="small-note">Optimiert für Tablet: große Karten, schnelle Auswahl.</div>
+        <div class="small-note">Große Karten, schnell tippen. Tablet-optimiert.</div>
       </div>
       <span class="pill <%= shopMode ? 'ok' : '' %>">
         <span class="dot"></span><%= shopMode ? ("Filiale: " + shopId) : "Admin" %>
@@ -191,7 +187,11 @@
     </div>
 
     <details class="collapse mt-3" open>
-      <summary>Filter</summary>
+      <summary>
+        <span>Filter</span>
+        <span class="chev">▼</span>
+      </summary>
+
       <form method="GET" action="/orders" class="mt-3">
         <div class="stack">
           <input class="input" name="q" placeholder="Suche (ID, Kunde, Notiz, Sorte...)" value="<%= filters.search %>"/>
@@ -270,7 +270,9 @@
     <div class="row" style="justify-content:space-between; align-items:flex-start;">
       <div>
         <h2 style="margin:0;"><%= selectedOrder ? "Bestellung Details" : "Neue Bestellung" %></h2>
-        <div class="small-note"><%= shopMode ? "Filiale erstellt Bestellungen." : "Admin erstellt/steuert Bestellungen." %></div>
+        <div class="small-note">
+          <%= shopMode ? "Filiale: feste Bestellliste (vom Admin). Nur Mengen eingeben." : "Admin: flexibel erstellen und steuern." %>
+        </div>
       </div>
 
       <% if (selectedOrder) { %>
@@ -282,6 +284,7 @@
 
     <% if (selectedOrder) { %>
 
+      <!-- DETAILS -->
       <div class="card mt-3">
         <div class="row" style="justify-content:space-between; gap:10px; flex-wrap:wrap;">
           <div>
@@ -308,27 +311,17 @@
 
       <div class="card mt-3">
         <h2>Positionen</h2>
-        <div class="item-list mt-3">
-          <%
-            var total = 0;
-            for (var k=0;k<(selectedOrder.items||[]).length;k++){
-              total += Number(selectedOrder.items[k].kg || 0);
-          %>
-            <div class="item-chip">
-              <div class="top">
-                <div>
-                  <div class="name"><%= selectedOrder.items[k].coffeeName %></div>
-                  <div class="meta mono"><%= selectedOrder.items[k].coffeeId %></div>
-                </div>
-                <div class="mono" style="font-weight:950;"><%= toFixed1(selectedOrder.items[k].kg) %> kg</div>
+        <div class="stack mt-3">
+          <% for (var k=0;k<(selectedOrder.items||[]).length;k++) { %>
+            <div class="order-card">
+              <div style="font-weight:950;"><%= selectedOrder.items[k].coffeeName %></div>
+              <div class="small-note mono"><%= selectedOrder.items[k].coffeeId %></div>
+              <div class="row mt-2" style="justify-content:space-between;">
+                <div class="small-note">Menge</div>
+                <div class="mono" style="font-weight:950;"><%= selectedOrder.items[k].kg %> kg</div>
               </div>
             </div>
           <% } %>
-        </div>
-
-        <div class="row mt-3" style="justify-content:space-between;">
-          <div class="small-note">Summe</div>
-          <div class="mono" style="font-weight:950;"><%= toFixed1(total) %> kg</div>
         </div>
       </div>
 
@@ -364,7 +357,7 @@
 
     <% } else { %>
 
-      <!-- CREATE (compact) -->
+      <!-- CREATE -->
       <form id="orderForm" method="POST" action="/actions/orders/create">
         <input type="hidden" name="payload" id="payload" value="" />
         <input type="hidden" id="deliveryDate" value="" />
@@ -419,51 +412,84 @@
           </div>
         </div>
 
-        <!-- COMPACT ITEMS -->
-        <div class="card mt-3">
-          <div class="row" style="justify-content:space-between; align-items:flex-start;">
-            <div>
-              <h2 style="margin:0;">Positionen</h2>
-              <div class="small-note">Dropdown + Hinzufügen. Danach erscheint eine kurze Liste (nicht chaotisch).</div>
-            </div>
-            <span class="pill"><span class="dot"></span><span id="itemsCount">0</span> Positionen</span>
-          </div>
+        <!-- SHOP: FIXED ORDER LIST DROPDOWN -->
+        <% if (shopMode) { %>
+          <details class="collapse mt-3" open id="assortmentDropdown">
+            <summary>
+              <span>Bestellliste öffnen</span>
+              <span class="chev">▼</span>
+            </summary>
 
-          <div class="composer mt-3">
-            <div class="composer-row">
-              <div class="field">
-                <div class="label">Sorte</div>
-                <select class="select" id="coffeePick">
-                  <option value="">Sorte wählen</option>
-                  <% for (var c=0;c<coffees.length;c++) { %>
-                    <option value="<%= coffees[c].id %>"><%= coffees[c].name %> (<%= coffees[c].id %>)</option>
-                  <% } %>
-                </select>
+            <div class="assort-head mt-3">
+              <div>
+                <div style="font-weight:950;">Feste Sortenliste</div>
+                <div class="small-note">Diese Liste kommt aus den Admin-Stammdaten. Filiale kann nur Mengen ändern.</div>
               </div>
-
-              <div class="field">
-                <div class="label">kg</div>
-                <input class="input" id="coffeeKg" type="number" step="0.1" min="0" placeholder="z.B. 2.5" />
-              </div>
-
-              <div class="field">
-                <div class="label">&nbsp;</div>
-                <button class="btn btn-primary" type="button" id="addBtn" style="height:46px; border-radius:18px;">Hinzufügen</button>
-              </div>
+              <span class="pill"><span class="dot"></span><span id="itemsCount">0</span> Positionen</span>
             </div>
 
-            <div class="small-note mt-2">
-              Tipp: gleiche Sorte hinzufügen erhöht automatisch die Menge (kein doppelter Eintrag).
+            <div class="row mt-3" style="justify-content:space-between;">
+              <div class="small-note">Summe</div>
+              <div class="mono" style="font-weight:950;" id="totalKg">0.0 kg</div>
             </div>
-          </div>
 
-          <div class="row mt-3" style="justify-content:space-between;">
-            <div class="small-note">Summe</div>
-            <div class="mono" style="font-weight:950;" id="totalKg">0.0 kg</div>
-          </div>
+            <div class="assort-grid" id="assortGrid">
+              <% for (var c=0;c<coffees.length;c++) { %>
+                <div class="assort-row">
+                  <div>
+                    <div class="assort-name"><%= coffees[c].name %></div>
+                    <div class="assort-meta mono"><%= coffees[c].id %> · Pack <%= (coffees[c].packDefaultKg || 1) %>kg</div>
+                  </div>
+                  <div class="field">
+                    <div class="label">kg</div>
+                    <input
+                      class="input qty"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      inputmode="decimal"
+                      placeholder="0"
+                      data-coffee-id="<%= coffees[c].id %>"
+                      data-coffee-name="<%= coffees[c].name.replace(/"/g, '&quot;') %>"
+                      value="0"
+                    />
+                  </div>
+                </div>
+              <% } %>
+            </div>
 
-          <div class="item-list mt-3" id="selectedList"></div>
-        </div>
+            <div class="small-note mt-3">
+              Tipp: 0 = nicht bestellen. Alles &gt; 0 wird als Position übernommen.
+            </div>
+          </details>
+
+        <% } else { %>
+
+          <!-- ADMIN: keep flexible composer (unchanged, can be improved later) -->
+          <div class="card mt-3">
+            <h2>Positionen</h2>
+            <div class="small-note">Admin: flexibel hinzufügen (Filiale/B2B).</div>
+
+            <div class="row mt-3" style="gap:10px; flex-wrap:wrap;">
+              <select class="select" id="coffeePick" style="flex:1; min-width:260px;">
+                <option value="">Sorte wählen</option>
+                <% for (var c=0;c<coffees.length;c++) { %>
+                  <option value="<%= coffees[c].id %>"><%= coffees[c].name %> (<%= coffees[c].id %>)</option>
+                <% } %>
+              </select>
+
+              <input class="input" id="coffeeKg" type="number" step="0.1" min="0" placeholder="kg" style="width:160px; height:46px; border-radius:16px;" />
+              <button class="btn btn-primary" type="button" id="addBtn" style="height:46px; border-radius:18px;">Hinzufügen</button>
+            </div>
+
+            <div class="row mt-3" style="justify-content:space-between;">
+              <div class="small-note">Summe</div>
+              <div class="mono" style="font-weight:950;" id="totalKg">0.0 kg</div>
+            </div>
+
+            <div class="stack mt-3" id="selectedList"></div>
+          </div>
+        <% } %>
 
         <div class="sticky-bar">
           <div class="sticky-inner">
@@ -487,7 +513,7 @@
   const shopMode = <%- JSON.stringify(!!shopMode) %>;
   const shopId = <%- JSON.stringify(shopId || "") %>;
 
-  // in-memory items for the create form (source of truth)
+  // ADMIN draft items (only used when !shopMode)
   let draftItems = [];
 
   function toISODate(val){
@@ -534,26 +560,41 @@
     }
   }
 
-  function coffeeNameById(id){
-    const c = coffees.find(x => String(x.id) === String(id));
-    return c ? c.name : id;
-  }
-
   function fmt1(n){
     const v = Number(n||0);
     return (Math.round(v*10)/10).toFixed(1);
   }
 
-  function computeTotals(){
+  // SHOP totals from fixed list
+  function shopComputeTotals(){
+    const inputs = Array.from(document.querySelectorAll("#assortGrid input.qty"));
+    let count = 0;
+    let total = 0;
+
+    inputs.forEach(i => {
+      const kg = Number(i.value || 0);
+      if (Number.isFinite(kg) && kg > 0) {
+        count += 1;
+        total += kg;
+      }
+    });
+
+    const c = document.getElementById("itemsCount");
+    if (c) c.textContent = String(count);
+
+    const t = document.getElementById("totalKg");
+    if (t) t.textContent = fmt1(total) + " kg";
+  }
+
+  // ADMIN totals from draft list
+  function adminComputeTotals(){
     let total = 0;
     draftItems.forEach(it => total += Number(it.kg || 0));
     const t = document.getElementById("totalKg");
     if (t) t.textContent = fmt1(total) + " kg";
-    const c = document.getElementById("itemsCount");
-    if (c) c.textContent = String(draftItems.length);
   }
 
-  function renderDraft(){
+  function adminRender(){
     const list = document.getElementById("selectedList");
     if (!list) return;
     list.innerHTML = "";
@@ -561,28 +602,30 @@
     if (!draftItems.length) {
       const div = document.createElement("div");
       div.className = "small-note";
-      div.textContent = "Noch keine Positionen. Wählen Sie oben eine Sorte und klicken Sie Hinzufügen.";
+      div.textContent = "Noch keine Positionen. Wähle eine Sorte und klicke Hinzufügen.";
       list.appendChild(div);
-      computeTotals();
+      adminComputeTotals();
       return;
     }
 
     draftItems.forEach((it, idx) => {
       const card = document.createElement("div");
-      card.className = "item-chip";
+      card.className = "order-card";
 
       const top = document.createElement("div");
-      top.className = "top";
+      top.className = "row";
+      top.style.justifyContent = "space-between";
+      top.style.alignItems = "flex-start";
+      top.style.gap = "10px";
 
       const left = document.createElement("div");
-      const name = document.createElement("div");
-      name.className = "name";
-      name.textContent = it.coffeeName;
-      const meta = document.createElement("div");
-      meta.className = "meta mono";
-      meta.textContent = it.coffeeId;
-      left.appendChild(name);
-      left.appendChild(meta);
+      const n = document.createElement("div");
+      n.style.fontWeight = "950";
+      n.textContent = it.coffeeName;
+      const m = document.createElement("div");
+      m.className = "small-note mono";
+      m.textContent = it.coffeeId;
+      left.appendChild(n); left.appendChild(m);
 
       const right = document.createElement("div");
       right.className = "mono";
@@ -593,19 +636,9 @@
       top.appendChild(right);
 
       const actions = document.createElement("div");
-      actions.className = "actions mt-2";
-
-      const minus = document.createElement("button");
-      minus.type = "button";
-      minus.className = "btn btn-ghost";
-      minus.textContent = "-0.5";
-      minus.onclick = () => { it.kg = Math.max(0, Number(it.kg||0) - 0.5); if (it.kg <= 0) draftItems.splice(idx,1); renderDraft(); };
-
-      const plus = document.createElement("button");
-      plus.type = "button";
-      plus.className = "btn btn-ghost";
-      plus.textContent = "+0.5";
-      plus.onclick = () => { it.kg = Number(it.kg||0) + 0.5; renderDraft(); };
+      actions.className = "row mt-2";
+      actions.style.gap = "10px";
+      actions.style.flexWrap = "wrap";
 
       const edit = document.createElement("button");
       edit.type = "button";
@@ -614,20 +647,18 @@
       edit.onclick = () => {
         const v = prompt("Neue Menge in kg:", String(it.kg));
         if (v === null) return;
-        const n = Number(v);
-        if (!Number.isFinite(n) || n <= 0) return alert("Bitte eine gültige Zahl > 0 eingeben.");
-        it.kg = n;
-        renderDraft();
+        const num = Number(v);
+        if (!Number.isFinite(num) || num <= 0) return alert("Bitte Zahl > 0 eingeben.");
+        it.kg = num;
+        adminRender();
       };
 
       const del = document.createElement("button");
       del.type = "button";
       del.className = "btn btn-danger";
       del.textContent = "Entfernen";
-      del.onclick = () => { draftItems.splice(idx,1); renderDraft(); };
+      del.onclick = () => { draftItems.splice(idx,1); adminRender(); };
 
-      actions.appendChild(minus);
-      actions.appendChild(plus);
       actions.appendChild(edit);
       actions.appendChild(del);
 
@@ -636,34 +667,32 @@
       list.appendChild(card);
     });
 
-    computeTotals();
+    adminComputeTotals();
   }
 
-  function addDraftItem(){
+  function adminAdd(){
     const pick = document.getElementById("coffeePick");
     const kgEl = document.getElementById("coffeeKg");
     if (!pick || !kgEl) return;
 
     const coffeeId = String(pick.value || "").trim();
     const kg = Number(kgEl.value || 0);
-
-    if (!coffeeId) return alert("Bitte eine Sorte auswählen.");
+    if (!coffeeId) return alert("Bitte Sorte wählen.");
     if (!Number.isFinite(kg) || kg <= 0) return alert("Bitte kg > 0 eingeben.");
 
-    const existing = draftItems.find(x => String(x.coffeeId) === coffeeId);
-    if (existing) {
-      existing.kg = Number(existing.kg||0) + kg;
-    } else {
-      draftItems.push({ coffeeId, coffeeName: coffeeNameById(coffeeId), kg });
-    }
+    const coffee = coffees.find(x => String(x.id) === coffeeId);
+    const name = coffee ? coffee.name : coffeeId;
 
-    // reset inputs
+    const ex = draftItems.find(x => String(x.coffeeId) === coffeeId);
+    if (ex) ex.kg = Number(ex.kg||0) + kg;
+    else draftItems.push({ coffeeId, coffeeName: name, kg });
+
     pick.value = "";
     kgEl.value = "";
-    renderDraft();
+    adminRender();
   }
 
-  // init create mode only
+  // INIT (create mode only)
   if (document.getElementById("orderForm")) {
     setDefaultDate();
     const ui = document.getElementById("deliveryDateUI");
@@ -681,16 +710,22 @@
       if (name && b2bSel.value) name.value = b2bSel.value;
     });
 
-    const addBtn = document.getElementById("addBtn");
-    if (addBtn) addBtn.addEventListener("click", addDraftItem);
+    if (shopMode) {
+      // live totals while typing
+      const inputs = Array.from(document.querySelectorAll("#assortGrid input.qty"));
+      inputs.forEach(i => i.addEventListener("input", shopComputeTotals));
+      shopComputeTotals();
+    } else {
+      const addBtn = document.getElementById("addBtn");
+      if (addBtn) addBtn.addEventListener("click", adminAdd);
 
-    // Enter key in kg adds item
-    const kgEl = document.getElementById("coffeeKg");
-    if (kgEl) kgEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); addDraftItem(); }
-    });
+      const kgEl = document.getElementById("coffeeKg");
+      if (kgEl) kgEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); adminAdd(); }
+      });
 
-    renderDraft();
+      adminRender();
+    }
 
     document.getElementById("orderForm").addEventListener("submit", () => {
       const channel = shopMode ? "FILIALE" : (document.getElementById("channel")?.value || "FILIALE");
@@ -713,17 +748,28 @@
         items: []
       };
 
-      // for B2B: if dropdown exists and customerName empty, use dropdown
+      // B2B dropdown fallback
       const b2b = document.getElementById("b2bCustomer");
       if (!shopMode && channel === "B2B" && b2b && b2b.value && !payload.customerName) {
         payload.customerName = b2b.value;
       }
 
-      payload.items = draftItems.map(it => ({
-        coffeeId: it.coffeeId,
-        coffeeName: it.coffeeName,
-        kg: Number(it.kg||0)
-      })).filter(it => it.coffeeId && it.coffeeName && Number.isFinite(it.kg) && it.kg > 0);
+      if (shopMode) {
+        // Build items from fixed list (only >0 kg)
+        const inputs = Array.from(document.querySelectorAll("#assortGrid input.qty"));
+        payload.items = inputs
+          .map(i => ({
+            coffeeId: i.getAttribute("data-coffee-id"),
+            coffeeName: i.getAttribute("data-coffee-name"),
+            kg: Number(i.value || 0)
+          }))
+          .filter(it => it.coffeeId && it.coffeeName && Number.isFinite(it.kg) && it.kg > 0);
+      } else {
+        // Admin from draft list
+        payload.items = draftItems
+          .map(it => ({ coffeeId: it.coffeeId, coffeeName: it.coffeeName, kg: Number(it.kg||0) }))
+          .filter(it => it.coffeeId && it.coffeeName && Number.isFinite(it.kg) && it.kg > 0);
+      }
 
       document.getElementById("payload").value = JSON.stringify(payload);
     });
