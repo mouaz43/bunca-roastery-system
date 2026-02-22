@@ -1,151 +1,193 @@
 <%
-  var safeInventory = (typeof inventory !== "undefined" && inventory) ? inventory : null;
-  var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
+  var inv = (typeof inventory !== "undefined" && inventory) ? inventory : null;
+  var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
 
-  function val(obj, key){
-    if (!obj) return 0;
-    var v = obj[key];
-    if (v === undefined || v === null) return 0;
-    return v;
+  function g(coffeeId){
+    if (!inv || !inv.greenBeansKg) return 0;
+    var v = inv.greenBeansKg[coffeeId];
+    return (v === undefined || v === null) ? 0 : Number(v);
   }
 
-  function green(coffeeId){
-    if (!safeInventory || !safeInventory.greenBeansKg) return 0;
-    return val(safeInventory.greenBeansKg, coffeeId);
+  function r(coffeeId){
+    if (!inv || !inv.roastedKg) return 0;
+    var v = inv.roastedKg[coffeeId];
+    return (v === undefined || v === null) ? 0 : Number(v);
   }
 
-  function roasted(coffeeId){
-    if (!safeInventory || !safeInventory.roastedKg) return 0;
-    return val(safeInventory.roastedKg, coffeeId);
+  function fmtUpdated(){
+    if (!inv || !inv.updatedAt) return "-";
+    return String(inv.updatedAt).slice(0,19).replace("T"," ");
   }
 
-  // thresholds (later configurable)
+  // Thresholds (we will move to settings later)
   function minGreen(){ return 25; }
   function minRoasted(){ return 10; }
 
-  function badgeFor(value, min){
-    if (value <= 0) return "badge danger";
-    if (value < min) return "badge warn";
-    return "badge ok";
+  function badge(value, min){
+    if (value <= 0) return { cls:"badge danger", label:"Kritisch" };
+    if (value < min) return { cls:"badge warn", label:"Niedrig" };
+    return { cls:"badge ok", label:"OK" };
   }
 
-  function txtFor(value, min){
-    if (value <= 0) return "Kritisch";
-    if (value < min) return "Niedrig";
-    return "OK";
+  function needNote(value, min){
+    if (value <= 0) return "Sofort prüfen (Bestand fehlt).";
+    if (value < min) return "Bald nachbestellen oder Produktion planen.";
+    return "Im grünen Bereich.";
   }
 
-  function safeUpdatedAt(){
-    if (!safeInventory || !safeInventory.updatedAt) return "-";
-    return String(safeInventory.updatedAt).slice(0,19).replace("T"," ");
+  function totalGreen(){
+    var t=0;
+    for (var i=0;i<coffees.length;i++) t += g(coffees[i].id);
+    return t;
+  }
+  function totalRoasted(){
+    var t=0;
+    for (var i=0;i<coffees.length;i++) t += r(coffees[i].id);
+    return t;
   }
 %>
 
 <div class="card-grid">
   <div class="card">
-    <h2>Lager Übersicht</h2>
-    <p>Rohkaffee und Röstkaffee pro Sorte, inklusive Warnstufen. Änderungen unten übernehmen.</p>
+    <h2>Lager</h2>
+    <p>Rohkaffee und Röstkaffee pro Sorte. Änderungen werden protokolliert und beeinflussen Produktion und Auslieferung.</p>
   </div>
 
   <div class="card">
-    <h2>Warnstufen</h2>
-    <p>Rohkaffee unter 25kg gilt als niedrig. Röstkaffee unter 10kg gilt als niedrig. Später pro Sorte.</p>
+    <h2>Übersicht</h2>
+    <p>
+      Roh gesamt: <strong><%= totalGreen() %> kg</strong><br/>
+      Röst gesamt: <strong><%= totalRoasted() %> kg</strong><br/>
+      Letztes Update: <span class="mono"><%= fmtUpdated() %></span>
+    </p>
+  </div>
+</div>
+
+<div class="filterbar">
+  <div class="filter-left">
+    <a class="btn btn-sm btn-ghost" href="/orders">Bestellungen</a>
+    <a class="btn btn-sm btn-ghost" href="/production">Produktion</a>
+    <a class="btn btn-sm btn-ghost" href="/activity">Aktivität</a>
   </div>
 
-  <div class="card">
-    <h2>Letzte Änderung</h2>
-    <p><strong><%= safeUpdatedAt() %></strong></p>
+  <div class="filter-right">
+    <a class="btn btn-primary" href="#apply">
+      <span class="btn-icon" aria-hidden="true"></span>
+      Bestand ändern
+    </a>
+  </div>
+</div>
+
+<!-- INVENTORY TABLE -->
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Bestandsübersicht</div>
+      <div class="section-sub">Warnstufen: Roh unter <%= minGreen() %> kg, Röst unter <%= minRoasted() %> kg.</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="badge info"><span class="dot"></span><%= coffees.length %> Sorten</div>
   </div>
 
-  <div class="card">
-    <h2>Schnellaktionen</h2>
-    <p>Engpass? Erst Lager, dann Produktion. Danach Bestellungen prüfen.</p>
-    <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-      <a class="btn btn-secondary" href="/production">Zur Produktion</a>
-      <a class="btn btn-ghost" href="/orders">Zu Bestellungen</a>
+  <div class="section-body" style="padding:0;">
+    <div class="table-wrap" style="border-radius:0; border-left:none; border-right:none; border-bottom:none;">
+      <div class="table-head" style="grid-template-columns: 1fr 140px 140px 160px 160px 280px;">
+        <div>Sorte</div>
+        <div class="right">Roh kg</div>
+        <div class="right">Röst kg</div>
+        <div>Roh Status</div>
+        <div>Röst Status</div>
+        <div class="right">Hinweis</div>
+      </div>
+
+      <% if (!coffees.length) { %>
+        <div class="table-row" style="grid-template-columns: 1fr;">
+          <div class="card" style="margin:14px;">
+            <h2>Keine Sorten</h2>
+            <p>Es sind keine Kaffeesorten hinterlegt. Bitte in Einstellungen Stammdaten pflegen.</p>
+            <div class="row" style="margin-top:12px;">
+              <a class="btn btn-primary" href="/settings"><span class="btn-icon"></span>Einstellungen</a>
+            </div>
+          </div>
+        </div>
+      <% } %>
+
+      <% for (var i=0; i<coffees.length; i++) {
+          var c = coffees[i];
+          var gg = g(c.id);
+          var rr = r(c.id);
+          var bg = badge(gg, minGreen());
+          var br = badge(rr, minRoasted());
+      %>
+        <div class="table-row" style="grid-template-columns: 1fr 140px 140px 160px 160px 280px;">
+          <div>
+            <div style="font-weight:950;"><%= c.name %></div>
+            <div class="small-note mono"><%= c.id %></div>
+          </div>
+
+          <div class="right mono"><strong><%= gg %></strong></div>
+          <div class="right mono"><strong><%= rr %></strong></div>
+
+          <div><span class="<%= bg.cls %>"><span class="dot"></span><%= bg.label %></span></div>
+          <div><span class="<%= br.cls %>"><span class="dot"></span><%= br.label %></span></div>
+
+          <div class="right small-note">
+            <div><strong>Roh:</strong> <%= needNote(gg, minGreen()) %></div>
+            <div style="margin-top:6px;"><strong>Röst:</strong> <%= needNote(rr, minRoasted()) %></div>
+          </div>
+        </div>
+      <% } %>
     </div>
   </div>
 </div>
 
-<div style="margin-top:14px;" class="table-wrap">
-  <div class="table-head">
-    <div>Sorte</div>
-    <div>Roh kg</div>
-    <div>Röst kg</div>
-    <div>Roh Status</div>
-    <div>Röst Status</div>
-    <div>Aktionen</div>
+<!-- APPLY CHANGE -->
+<div id="apply" class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Bestand ändern</div>
+      <div class="section-sub">Änderung in kg eingeben (z.B. +10 oder -5). Typ auswählen: Roh oder Röst.</div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn btn-sm btn-ghost" href="#top">Nach oben</a>
   </div>
 
-  <% if (!safeCoffees.length) { %>
-    <div class="table-row">
-      <div>Keine Sorten geladen</div>
-      <div>-</div>
-      <div>-</div>
-      <div><span class="badge"><span class="dot"></span>Info</span></div>
-      <div><span class="badge"><span class="dot"></span>Info</span></div>
-      <div class="row-actions">
-        <a class="btn btn-primary" href="/settings">Zu Einstellungen</a>
+  <div class="section-body">
+    <form method="POST" action="/actions/inventory/apply">
+      <div class="filterbar">
+        <div class="filter-left">
+          <select class="select" name="type">
+            <option value="GREEN">Typ: Rohkaffee</option>
+            <option value="ROASTED">Typ: Röstkaffee</option>
+          </select>
+
+          <select class="select" name="coffeeId" style="min-width:240px;">
+            <option value="">Sorte wählen</option>
+            <% for (var j=0; j<coffees.length; j++) { %>
+              <option value="<%= coffees[j].id %>"><%= coffees[j].name %></option>
+            <% } %>
+          </select>
+
+          <input class="input" name="deltaKg" placeholder="Menge kg (z.B. +10 oder -5)" style="min-width:240px;" />
+          <input class="input" name="note" placeholder="Grund (optional) – Lieferung, Korrektur, Produktion" style="min-width:280px;" />
+        </div>
+
+        <div class="filter-right">
+          <button class="btn btn-sm btn-ghost" type="reset">Zurücksetzen</button>
+          <button class="btn btn-primary" type="submit">
+            <span class="btn-icon" aria-hidden="true"></span>
+            Übernehmen
+          </button>
+        </div>
       </div>
+    </form>
+
+    <div class="card mt-3">
+      <h2>Pro-Tipp (Workflow)</h2>
+      <p>
+        Nach dem Rösten: Batch-Status auf <strong>Geröstet</strong> setzen, damit Roh → Röst automatisch bewegt wird.<br/>
+        Nach Auslieferung: Bestellung <strong>Ausliefern</strong> buchen, damit Röstkaffee reduziert wird.
+      </p>
     </div>
-  <% } %>
-
-  <% for (var i=0; i<safeCoffees.length; i++) {
-      var c = safeCoffees[i];
-      var g = green(c.id);
-      var r = roasted(c.id);
-
-      var bg = badgeFor(g, minGreen());
-      var br = badgeFor(r, minRoasted());
-
-      var tg = txtFor(g, minGreen());
-      var tr = txtFor(r, minRoasted());
-  %>
-    <div class="table-row">
-      <div><strong><%= c.name %></strong></div>
-      <div><%= g %></div>
-      <div><%= r %></div>
-      <div><span class="<%= bg %>"><span class="dot"></span><%= tg %></span></div>
-      <div><span class="<%= br %>"><span class="dot"></span><%= tr %></span></div>
-      <div class="row-actions">
-        <a class="btn btn-ghost" href="#apply">Anpassen</a>
-        <a class="btn btn-secondary" href="/production">Planen</a>
-      </div>
-    </div>
-  <% } %>
-</div>
-
-<div id="apply" style="margin-top:14px;" class="card card-wide">
-  <h2>Bestand ändern</h2>
-  <p>Änderung in kg eingeben (z.B. +10 oder -5). Danach wird der Bestand sofort aktualisiert.</p>
-
-  <form method="POST" action="/actions/inventory/apply">
-    <div class="filterbar" style="margin-top:12px;">
-      <div class="filter-left">
-        <select class="select" name="type">
-          <option value="GREEN">Typ: Rohkaffee</option>
-          <option value="ROASTED">Typ: Röstkaffee</option>
-        </select>
-
-        <select class="select" name="coffeeId">
-          <option value="">Sorte wählen</option>
-          <% for (var i=0; i<safeCoffees.length; i++) { %>
-            <option value="<%= safeCoffees[i].id %>"><%= safeCoffees[i].name %></option>
-          <% } %>
-        </select>
-
-        <input class="input" name="deltaKg" placeholder="Menge in kg (z.B. +10 oder -5)" />
-        <input class="input" name="note" placeholder="Grund (optional)" />
-      </div>
-
-      <div class="filter-right">
-        <button class="btn btn-secondary" type="reset">Zurücksetzen</button>
-        <button class="btn btn-primary" type="submit">Übernehmen</button>
-      </div>
-    </div>
-  </form>
-
-  <div style="margin-top:10px;" class="small-note">
-    Nächster Schritt: Protokoll und automatische Lagerbewegungen aus Produktion und Auslieferung.
   </div>
 </div>
