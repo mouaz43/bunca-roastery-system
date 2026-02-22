@@ -29,7 +29,6 @@ function countByStatus(orders) {
   const statuses = ["EINGEGANGEN", "FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT", "AUSGELIEFERT"];
   const counts = {};
   for (const s of statuses) counts[s] = 0;
-
   for (const o of orders || []) {
     const st = String(o.status || "");
     if (counts[st] !== undefined) counts[st] += 1;
@@ -38,13 +37,36 @@ function countByStatus(orders) {
 }
 
 function nextDeliveryDate(orders) {
-  // earliest deliveryDate among not delivered
   const open = (orders || []).filter(o => String(o.status) !== "AUSGELIEFERT" && o.deliveryDate);
   if (!open.length) return null;
-
-  // deliveryDate is stored as YYYY-MM-DD in our system
   open.sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)));
   return open[0].deliveryDate;
+}
+
+function sortOrdersSmart(list) {
+  const rank = (st) => {
+    // smaller = more urgent / earlier in list
+    if (st === "EINGEGANGEN") return 1;
+    if (st === "FREIGEGEBEN") return 2;
+    if (st === "IN_PRODUKTION") return 3;
+    if (st === "VERPACKT") return 4;
+    if (st === "AUSGELIEFERT") return 9;
+    return 8;
+  };
+
+  return [...(list || [])].sort((a, b) => {
+    const ra = rank(String(a.status || ""));
+    const rb = rank(String(b.status || ""));
+    if (ra !== rb) return ra - rb;
+
+    const da = String(a.deliveryDate || "9999-99-99");
+    const db = String(b.deliveryDate || "9999-99-99");
+    if (da !== db) return da.localeCompare(db);
+
+    const ca = new Date(a.createdAt || 0).getTime();
+    const cb = new Date(b.createdAt || 0).getTime();
+    return cb - ca; // newest first
+  });
 }
 
 exports.renderDashboard = async (req, res) => {
@@ -58,7 +80,6 @@ exports.renderDashboard = async (req, res) => {
     ? allOrders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""))
     : allOrders;
 
-  // Admin-only metrics
   let demandCount = 0;
   let batchCount = 0;
   let activityCount = 0;
@@ -72,7 +93,6 @@ exports.renderDashboard = async (req, res) => {
     activityCount = activity.length;
   }
 
-  // Shop dashboard extras
   const shopStatusCounts = shopMode ? countByStatus(orders) : null;
   const shopNextDelivery = shopMode ? nextDeliveryDate(orders) : null;
 
@@ -85,7 +105,6 @@ exports.renderDashboard = async (req, res) => {
       activityCount,
       inventoryUpdatedAt: inv.updatedAt,
 
-      // New fields for SHOP dashboard
       shopMode,
       shopId,
       shopStatusCounts,
@@ -116,6 +135,7 @@ exports.renderOrders = async (req, res) => {
 
   const all = await store.listOrders();
 
+  // defaults already ok
   const search = q(req, "q", "");
   const status = q(req, "status", "ALL");
   const channel = q(req, "channel", "ALL");
@@ -127,10 +147,12 @@ exports.renderOrders = async (req, res) => {
 
   let orders = all;
 
+  // Hard filter for Shop role
   if (shopMode) {
     orders = orders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""));
   }
 
+  // Apply UI filters
   orders = orders.filter(o => {
     if (since && new Date(o.createdAt).getTime() < since) return false;
     if (status !== "ALL" && o.status !== status) return false;
@@ -149,6 +171,9 @@ exports.renderOrders = async (req, res) => {
     return true;
   });
 
+  // NEW: smart sorting
+  orders = sortOrdersSmart(orders);
+
   res.render(
     "orders",
     Object.assign(base("orders", "Bestellungen", shopMode ? "Nur Ihre Filiale" : "Filiale und B2B Bestellungen verwalten"), {
@@ -165,12 +190,13 @@ exports.renderOrders = async (req, res) => {
       hintTitle: "Seitenhinweis",
       hintLines: shopMode
         ? [
+            "Neueste/Dringende Bestellungen stehen oben.",
             "Sie können nur Bestellungen für Ihre Filiale anlegen.",
             "Freigabe und Auslieferung macht die Rösterei."
           ]
         : [
-            "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab.",
-            "Nutzen Sie Filter für schnelle Übersicht."
+            "Offene Bestellungen stehen oben (Smart Sort).",
+            "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab."
           ],
       hintMeta: { left: shopMode ? ("Filiale: " + shopId) : "Admin", right: "Treffer: " + orders.length }
     })
@@ -267,7 +293,6 @@ exports.renderActivity = async (req, res) => {
       const hay = (act + " " + meta).toLowerCase();
       if (!hay.includes(s)) return false;
     }
-
     return true;
   });
 
