@@ -20,26 +20,45 @@ function isShop(req) {
   const u = req.session && req.session.user;
   return u && u.role === "SHOP";
 }
-
 function getShopId(req) {
   const u = req.session && req.session.user;
   return u ? u.shopId : null;
+}
+
+function countByStatus(orders) {
+  const statuses = ["EINGEGANGEN", "FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT", "AUSGELIEFERT"];
+  const counts = {};
+  for (const s of statuses) counts[s] = 0;
+
+  for (const o of orders || []) {
+    const st = String(o.status || "");
+    if (counts[st] !== undefined) counts[st] += 1;
+  }
+  return counts;
+}
+
+function nextDeliveryDate(orders) {
+  // earliest deliveryDate among not delivered
+  const open = (orders || []).filter(o => String(o.status) !== "AUSGELIEFERT" && o.deliveryDate);
+  if (!open.length) return null;
+
+  // deliveryDate is stored as YYYY-MM-DD in our system
+  open.sort((a, b) => String(a.deliveryDate).localeCompare(String(b.deliveryDate)));
+  return open[0].deliveryDate;
 }
 
 exports.renderDashboard = async (req, res) => {
   const shopMode = isShop(req);
   const shopId = getShopId(req);
 
-  // Pull data
   const allOrders = await store.listOrders();
   const inv = await store.getInventory();
 
-  // Filter orders for shop users
   const orders = shopMode
     ? allOrders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""))
     : allOrders;
 
-  // Admin-only metrics: demand/batches/activity
+  // Admin-only metrics
   let demandCount = 0;
   let batchCount = 0;
   let activityCount = 0;
@@ -53,24 +72,42 @@ exports.renderDashboard = async (req, res) => {
     activityCount = activity.length;
   }
 
-  res.render("dashboard", Object.assign(base("dashboard", "Dashboard", shopMode ? "Filial-Übersicht" : "Übersicht und Schnellaktionen"), {
-    ordersCount: orders.length,
-    demandCount,
-    batchCount,
-    activityCount,
-    inventoryUpdatedAt: inv.updatedAt,
-    hintTitle: "Seitenhinweis",
-    hintLines: shopMode
-      ? [
-          "Sie sehen nur Bestellungen Ihrer Filiale.",
-          "Neue Bestellung anlegen → Rösterei gibt frei und plant Produktion."
-        ]
-      : [
-          "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
-          "Aktivität zeigt jede Änderung."
-        ],
-    hintMeta: { left: shopMode ? "Rolle: Filiale" : "Rolle: Admin", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
-  }));
+  // Shop dashboard extras
+  const shopStatusCounts = shopMode ? countByStatus(orders) : null;
+  const shopNextDelivery = shopMode ? nextDeliveryDate(orders) : null;
+
+  res.render(
+    "dashboard",
+    Object.assign(base("dashboard", "Dashboard", shopMode ? "Filial-Übersicht" : "Übersicht und Schnellaktionen"), {
+      ordersCount: orders.length,
+      demandCount,
+      batchCount,
+      activityCount,
+      inventoryUpdatedAt: inv.updatedAt,
+
+      // New fields for SHOP dashboard
+      shopMode,
+      shopId,
+      shopStatusCounts,
+      shopNextDelivery,
+
+      hintTitle: "Seitenhinweis",
+      hintLines: shopMode
+        ? [
+            "Sie sehen nur Bestellungen Ihrer Filiale.",
+            "Sie können Bestellungen anlegen und den Status verfolgen.",
+            "Freigabe, Produktion und Auslieferung übernimmt die Rösterei."
+          ]
+        : [
+            "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
+            "Aktivität zeigt jede Änderung."
+          ],
+      hintMeta: {
+        left: shopMode ? `Rolle: Filiale (${shopId || "-"})` : "Rolle: Admin",
+        right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ")
+      }
+    })
+  );
 };
 
 exports.renderOrders = async (req, res) => {
@@ -79,7 +116,6 @@ exports.renderOrders = async (req, res) => {
 
   const all = await store.listOrders();
 
-  // Filters
   const search = q(req, "q", "");
   const status = q(req, "status", "ALL");
   const channel = q(req, "channel", "ALL");
@@ -91,17 +127,14 @@ exports.renderOrders = async (req, res) => {
 
   let orders = all;
 
-  // Hard filter for Shop role
   if (shopMode) {
     orders = orders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""));
   }
 
-  // Apply UI filters (admin + shop)
   orders = orders.filter(o => {
     if (since && new Date(o.createdAt).getTime() < since) return false;
     if (status !== "ALL" && o.status !== status) return false;
 
-    // Shop users always FILIALE; channel filter should not reveal others
     if (!shopMode && channel !== "ALL" && o.channel !== channel) return false;
     if (!shopMode && shop !== "ALL" && String(o.shopId || "") !== String(shop)) return false;
 
@@ -116,23 +149,32 @@ exports.renderOrders = async (req, res) => {
     return true;
   });
 
-  res.render("orders", Object.assign(base("orders", "Bestellungen", shopMode ? "Nur Ihre Filiale" : "Filiale und B2B Bestellungen verwalten"), {
-    orders,
-    shops: store.SHOPS,
-    coffees: store.COFFEES,
-    filters: { search, status, channel: shopMode ? "FILIALE" : channel, shop: shopMode ? String(shopId || "ALL") : shop, range },
-    hintTitle: "Seitenhinweis",
-    hintLines: shopMode
-      ? [
-          "Sie können nur Bestellungen für Ihre Filiale anlegen.",
-          "Freigabe und Auslieferung macht die Rösterei."
-        ]
-      : [
-          "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab.",
-          "Nutzen Sie Filter für schnelle Übersicht."
-        ],
-    hintMeta: { left: shopMode ? ("Filiale: " + shopId) : "Admin", right: "Treffer: " + orders.length }
-  }));
+  res.render(
+    "orders",
+    Object.assign(base("orders", "Bestellungen", shopMode ? "Nur Ihre Filiale" : "Filiale und B2B Bestellungen verwalten"), {
+      orders,
+      shops: store.SHOPS,
+      coffees: store.COFFEES,
+      filters: {
+        search,
+        status,
+        channel: shopMode ? "FILIALE" : channel,
+        shop: shopMode ? String(shopId || "ALL") : shop,
+        range
+      },
+      hintTitle: "Seitenhinweis",
+      hintLines: shopMode
+        ? [
+            "Sie können nur Bestellungen für Ihre Filiale anlegen.",
+            "Freigabe und Auslieferung macht die Rösterei."
+          ]
+        : [
+            "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab.",
+            "Nutzen Sie Filter für schnelle Übersicht."
+          ],
+      hintMeta: { left: shopMode ? ("Filiale: " + shopId) : "Admin", right: "Treffer: " + orders.length }
+    })
+  );
 };
 
 exports.renderProduction = async (req, res) => {
