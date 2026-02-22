@@ -13,9 +13,16 @@ function requireRole(...roles) {
   };
 }
 
+function requireAdmin(req, res, next) {
+  const u = req.session && req.session.user;
+  if (!u) return res.redirect("/login");
+  if (u.role === "ADMIN") return next();
+  return res.status(403).send("Nur Admin.");
+}
+
 function injectUser(req, res, next) {
   res.locals.currentUser = (req.session && req.session.user) ? req.session.user : null;
   next();
 }
 
-module.exports = { requireAuth, requireRole, injectUser };
+module.exports = { requireAuth, requireRole, requireAdmin, injectUser };
