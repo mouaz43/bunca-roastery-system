@@ -129,12 +129,19 @@ exports.renderDashboard = async (req, res) => {
   );
 };
 
-exports.renderOrders = async (req, res) => {
-  const shopMode = isShop(req);
-  const shopId = getShopId(req);
-
-  const all = await store.listOrders();
-
+exports.renderSettings = async (req, res) => {
+  res.render("settings", Object.assign(base("settings", "Einstellungen", "Stammdaten und Regeln"), {
+    coffees: store.COFFEES,
+    shops: store.SHOPS,
+    query: req.query,
+    hintTitle: "Seitenhinweis",
+    hintLines: [
+      "Admin erstellt hier Filial-Accounts.",
+      "Als nächstes: Benutzerliste + Passwort Reset."
+    ],
+    hintMeta: { left: "Admin", right: "Benutzerverwaltung" }
+  }));
+};
   // defaults already ok
   const search = q(req, "q", "");
   const status = q(req, "status", "ALL");
