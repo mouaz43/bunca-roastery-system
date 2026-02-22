@@ -1,14 +1,22 @@
 <%
   var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
   var shops = (typeof shops !== "undefined" && shops) ? shops : [];
+
   var userError = (typeof query !== "undefined" && query && query.user_error) ? query.user_error : null;
   var userOk = (typeof query !== "undefined" && query && query.user_ok) ? query.user_ok : null;
+
+  var masterError = (typeof query !== "undefined" && query && query.master_error) ? query.master_error : null;
+  var masterOk = (typeof query !== "undefined" && query && query.master_ok) ? query.master_ok : null;
+
+  function upperIdHint(txt){
+    return (txt || "").toUpperCase().replace(/\s+/g,"_");
+  }
 %>
 
 <div class="card-grid">
   <div class="card">
     <h2>Einstellungen</h2>
-    <p>Stammdaten, Regeln und Benutzerverwaltung. Admin erstellt Konten für Filialen.</p>
+    <p>Stammdaten, Regeln und Benutzerverwaltung. Admin erstellt Konten und verwaltet Sorten/Filialen.</p>
   </div>
 
   <div class="card">
@@ -20,29 +28,45 @@
   </div>
 </div>
 
+<!-- GLOBAL FEEDBACK -->
+<% if (masterError) { %>
+  <div class="card" style="border-color: rgba(255,77,77,.35);">
+    <h2>Stammdaten Fehler</h2>
+    <p><%= masterError %></p>
+  </div>
+<% } %>
+
+<% if (masterOk) { %>
+  <div class="card" style="border-color: rgba(38,201,122,.35);">
+    <h2>Stammdaten OK</h2>
+    <p><%= masterOk %></p>
+  </div>
+<% } %>
+
+<% if (userError) { %>
+  <div class="card" style="border-color: rgba(255,77,77,.35);">
+    <h2>Benutzer Fehler</h2>
+    <p><%= userError %></p>
+  </div>
+<% } %>
+
+<% if (userOk) { %>
+  <div class="card" style="border-color: rgba(38,201,122,.35);">
+    <h2>Benutzer OK</h2>
+    <p><%= userOk %></p>
+  </div>
+<% } %>
+
+<!-- USERS -->
 <div class="section">
   <div class="section-head">
     <div>
       <div class="section-title">Benutzer erstellen</div>
-      <div class="section-sub">Erstellen Sie Filial-Accounts, damit Mitarbeiter Bestellungen anlegen und Status verfolgen können.</div>
+      <div class="section-sub">Filial-Accounts können nur bestellen und den Status verfolgen. Admin sieht alles.</div>
     </div>
   </div>
 
   <div class="section-body">
-    <% if (userError) { %>
-      <div class="card" style="border-color: rgba(255,77,77,.35);">
-        <h2>Fehler</h2>
-        <p><%= userError %></p>
-      </div>
-    <% } %>
-
-    <% if (userOk) { %>
-      <div class="card" style="border-color: rgba(38,201,122,.35);">
-        <h2>OK</h2>
-        <p><%= userOk %></p>
-      </div>
-    <% } %>
-
     <form method="POST" action="/actions/users/create">
       <div class="filterbar">
         <div class="filter-left">
@@ -77,68 +101,154 @@
       <h2>Hinweis</h2>
       <p>
         Filialen sehen nur Dashboard + Bestellungen. Admin sieht alles.<br/>
-        Passwörter können wir als nächsten Schritt sicherer machen (Reset-Funktion, Mindestlänge, etc.).
+        Nächster Schritt: Benutzerliste + Passwort Reset.
       </p>
     </div>
   </div>
 </div>
 
-<!-- Keep the rest of your existing settings UI below (stammdaten / roadmap etc.) -->
+<!-- MASTER DATA EDITOR -->
 <div class="section">
   <div class="section-head">
     <div>
-      <div class="section-title">Stammdaten</div>
-      <div class="section-sub">Aktuell per Seed gesetzt. Nächster Schritt: editierbar im UI mit DB-Speicherung.</div>
+      <div class="section-title">Stammdaten bearbeiten</div>
+      <div class="section-sub">Änderungen werden in der Datenbank gespeichert und sofort im System verwendet.</div>
     </div>
   </div>
 
   <div class="section-body">
     <div class="card-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+
+      <!-- COFFEES -->
       <div class="card">
         <h2>Kaffeesorten</h2>
-        <p>Diese Sorten werden in Bestellungen, Lager und Produktion verwendet.</p>
+        <p>ID sollte stabil bleiben (z.B. <span class="mono">ESPRESSO</span>). Name können Sie jederzeit ändern.</p>
 
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 1fr;">
-            <div>Sorte</div>
-            <div>ID</div>
+        <!-- Add coffee -->
+        <form method="POST" action="/actions/masters/coffee/create" class="mt-3">
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="id" placeholder="ID (z.B. <%= upperIdHint('espresso') %>)" style="min-width:180px;" />
+              <input class="input" name="name" placeholder="Name (z.B. Espresso Blend)" style="min-width:240px;" />
+              <input class="input" name="packDefaultKg" placeholder="Pack kg (z.B. 1)" style="min-width:140px;" />
+            </div>
+            <div class="filter-right">
+              <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Hinzufügen</button>
+            </div>
           </div>
+        </form>
+
+        <!-- Coffee list -->
+        <div class="table-wrap mt-3">
+          <div class="table-head" style="grid-template-columns: 170px 1fr 120px 260px;">
+            <div>ID</div>
+            <div>Name</div>
+            <div class="right">Pack</div>
+            <div class="right">Aktionen</div>
+          </div>
+
           <% if (!coffees.length) { %>
             <div class="table-row" style="grid-template-columns: 1fr;">
               <div class="small-note">Keine Sorten vorhanden.</div>
             </div>
           <% } %>
+
           <% for (var c=0; c<coffees.length; c++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 1fr;">
-              <div style="font-weight:950;"><%= coffees[c].name %></div>
-              <div class="mono small-note"><%= coffees[c].id %></div>
+            <div class="table-row" style="grid-template-columns: 170px 1fr 120px 260px;">
+              <div class="mono"><%= coffees[c].id %></div>
+
+              <form method="POST" action="/actions/masters/coffee/update" style="display:contents;">
+                <input type="hidden" name="id" value="<%= coffees[c].id %>" />
+
+                <div>
+                  <input class="input" name="name" value="<%= coffees[c].name %>" style="height:40px;" />
+                </div>
+
+                <div class="right">
+                  <input class="input" name="packDefaultKg" value="<%= coffees[c].packDefaultKg %>" style="height:40px; width:100px; text-align:right;" />
+                </div>
+
+                <div class="row-actions">
+                  <button class="btn btn-sm btn-primary" type="submit"><span class="btn-icon"></span>Speichern</button>
+                </div>
+              </form>
+
+              <div class="row-actions" style="margin-top:-46px; justify-content:flex-end;">
+                <form method="POST" action="/actions/masters/coffee/delete" onsubmit="return confirm('Sorte wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= coffees[c].id %>" />
+                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                </form>
+              </div>
             </div>
           <% } %>
         </div>
+
+        <div class="small-note mt-3">
+          Löschen ist nur möglich, wenn die Sorte noch nicht in Bestellungen/Chargen verwendet wurde.
+        </div>
       </div>
 
+      <!-- SHOPS -->
       <div class="card">
         <h2>Filialen</h2>
-        <p>Filialen werden für Bestellungen und Rollen verwendet.</p>
+        <p>ID sollte stabil bleiben (z.B. <span class="mono">CITY</span>). Name können Sie ändern.</p>
 
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 1fr;">
-            <div>Filiale</div>
-            <div>ID</div>
+        <!-- Add shop -->
+        <form method="POST" action="/actions/masters/shop/create" class="mt-3">
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="id" placeholder="ID (z.B. <%= upperIdHint('city') %>)" style="min-width:180px;" />
+              <input class="input" name="name" placeholder="Name (z.B. Bunca City)" style="min-width:260px;" />
+            </div>
+            <div class="filter-right">
+              <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Hinzufügen</button>
+            </div>
           </div>
+        </form>
+
+        <!-- Shop list -->
+        <div class="table-wrap mt-3">
+          <div class="table-head" style="grid-template-columns: 170px 1fr 260px;">
+            <div>ID</div>
+            <div>Name</div>
+            <div class="right">Aktionen</div>
+          </div>
+
           <% if (!shops.length) { %>
             <div class="table-row" style="grid-template-columns: 1fr;">
               <div class="small-note">Keine Filialen vorhanden.</div>
             </div>
           <% } %>
+
           <% for (var s=0; s<shops.length; s++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 1fr;">
-              <div style="font-weight:950;"><%= shops[s].name %></div>
-              <div class="mono small-note"><%= shops[s].id %></div>
+            <div class="table-row" style="grid-template-columns: 170px 1fr 260px;">
+              <div class="mono"><%= shops[s].id %></div>
+
+              <form method="POST" action="/actions/masters/shop/update" style="display:contents;">
+                <input type="hidden" name="id" value="<%= shops[s].id %>" />
+                <div>
+                  <input class="input" name="name" value="<%= shops[s].name %>" style="height:40px;" />
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn-sm btn-primary" type="submit"><span class="btn-icon"></span>Speichern</button>
+                </div>
+              </form>
+
+              <div class="row-actions" style="margin-top:-46px; justify-content:flex-end;">
+                <form method="POST" action="/actions/masters/shop/delete" onsubmit="return confirm('Filiale wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= shops[s].id %>" />
+                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                </form>
+              </div>
             </div>
           <% } %>
         </div>
+
+        <div class="small-note mt-3">
+          Löschen ist nur möglich, wenn keine Bestellungen oder Benutzer an die Filiale gebunden sind.
+        </div>
       </div>
+
     </div>
   </div>
 </div>
