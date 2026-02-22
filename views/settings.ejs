@@ -1,45 +1,95 @@
 <%
   var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
   var shops = (typeof shops !== "undefined" && shops) ? shops : [];
-
-  function count(v){ return (v && v.length) ? v.length : 0; }
+  var userError = (typeof query !== "undefined" && query && query.user_error) ? query.user_error : null;
+  var userOk = (typeof query !== "undefined" && query && query.user_ok) ? query.user_ok : null;
 %>
 
 <div class="card-grid">
   <div class="card">
     <h2>Einstellungen</h2>
-    <p>Stammdaten und Regeln. Hier werden Sorten, Filialen, Mindestbestände und später Benutzer/Rollen verwaltet.</p>
+    <p>Stammdaten, Regeln und Benutzerverwaltung. Admin erstellt Konten für Filialen.</p>
   </div>
 
   <div class="card">
     <h2>Status</h2>
     <p>
-      Sorten: <strong><%= count(coffees) %></strong><br/>
-      Filialen: <strong><%= count(shops) %></strong>
+      Sorten: <strong><%= coffees.length %></strong><br/>
+      Filialen: <strong><%= shops.length %></strong>
     </p>
   </div>
 </div>
 
-<div class="filterbar">
-  <div class="filter-left">
-    <a class="btn btn-sm btn-ghost" href="/dashboard">Dashboard</a>
-    <a class="btn btn-sm btn-ghost" href="/activity">Audit Log</a>
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Benutzer erstellen</div>
+      <div class="section-sub">Erstellen Sie Filial-Accounts, damit Mitarbeiter Bestellungen anlegen und Status verfolgen können.</div>
+    </div>
   </div>
 
-  <div class="filter-right">
-    <span class="badge info"><span class="dot"></span>Admin Bereich</span>
+  <div class="section-body">
+    <% if (userError) { %>
+      <div class="card" style="border-color: rgba(255,77,77,.35);">
+        <h2>Fehler</h2>
+        <p><%= userError %></p>
+      </div>
+    <% } %>
+
+    <% if (userOk) { %>
+      <div class="card" style="border-color: rgba(38,201,122,.35);">
+        <h2>OK</h2>
+        <p><%= userOk %></p>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/actions/users/create">
+      <div class="filterbar">
+        <div class="filter-left">
+          <input class="input" name="name" placeholder="Name (z.B. City)" style="min-width:200px;" />
+          <input class="input" name="email" placeholder="E-Mail" style="min-width:260px;" />
+
+          <select class="select" name="role">
+            <option value="SHOP">Rolle: Filiale</option>
+            <option value="ADMIN">Rolle: Admin</option>
+          </select>
+
+          <select class="select" name="shopId" style="min-width:220px;">
+            <option value="">Filiale wählen (nur bei Filiale)</option>
+            <% for (var i=0;i<shops.length;i++) { %>
+              <option value="<%= shops[i].id %>"><%= shops[i].name %></option>
+            <% } %>
+          </select>
+
+          <input class="input" name="password" placeholder="Passwort" style="min-width:200px;" />
+        </div>
+
+        <div class="filter-right">
+          <button class="btn btn-primary" type="submit">
+            <span class="btn-icon" aria-hidden="true"></span>
+            Benutzer erstellen
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <div class="card mt-4">
+      <h2>Hinweis</h2>
+      <p>
+        Filialen sehen nur Dashboard + Bestellungen. Admin sieht alles.<br/>
+        Passwörter können wir als nächsten Schritt sicherer machen (Reset-Funktion, Mindestlänge, etc.).
+      </p>
+    </div>
   </div>
 </div>
 
-<!-- MASTER DATA -->
+<!-- Keep the rest of your existing settings UI below (stammdaten / roadmap etc.) -->
 <div class="section">
   <div class="section-head">
     <div>
       <div class="section-title">Stammdaten</div>
       <div class="section-sub">Aktuell per Seed gesetzt. Nächster Schritt: editierbar im UI mit DB-Speicherung.</div>
     </div>
-    <div class="spacer"></div>
-    <a class="btn btn-sm btn-ghost" href="#roadmap">Roadmap</a>
   </div>
 
   <div class="section-body">
@@ -53,43 +103,34 @@
             <div>Sorte</div>
             <div>ID</div>
           </div>
-
           <% if (!coffees.length) { %>
             <div class="table-row" style="grid-template-columns: 1fr;">
               <div class="small-note">Keine Sorten vorhanden.</div>
             </div>
           <% } %>
-
-          <% for (var i=0; i<coffees.length; i++) { %>
+          <% for (var c=0; c<coffees.length; c++) { %>
             <div class="table-row" style="grid-template-columns: 1fr 1fr;">
-              <div style="font-weight:950;"><%= coffees[i].name %></div>
-              <div class="mono small-note"><%= coffees[i].id %></div>
+              <div style="font-weight:950;"><%= coffees[c].name %></div>
+              <div class="mono small-note"><%= coffees[c].id %></div>
             </div>
           <% } %>
-        </div>
-
-        <div class="row mt-3">
-          <button class="btn btn-sm btn-ghost" type="button" onclick="alert('Nächster Schritt: Sorten bearbeiten (UI + DB).');">Bearbeiten</button>
-          <a class="btn btn-sm btn-primary" href="/inventory"><span class="btn-icon"></span>Im Lager ansehen</a>
         </div>
       </div>
 
       <div class="card">
         <h2>Filialen</h2>
-        <p>Filialen werden für Bestellungen und Rollen (Shop-Login) verwendet.</p>
+        <p>Filialen werden für Bestellungen und Rollen verwendet.</p>
 
         <div class="table-wrap mt-3">
           <div class="table-head" style="grid-template-columns: 1fr 1fr;">
             <div>Filiale</div>
             <div>ID</div>
           </div>
-
           <% if (!shops.length) { %>
             <div class="table-row" style="grid-template-columns: 1fr;">
               <div class="small-note">Keine Filialen vorhanden.</div>
             </div>
           <% } %>
-
           <% for (var s=0; s<shops.length; s++) { %>
             <div class="table-row" style="grid-template-columns: 1fr 1fr;">
               <div style="font-weight:950;"><%= shops[s].name %></div>
@@ -97,79 +138,6 @@
             </div>
           <% } %>
         </div>
-
-        <div class="row mt-3">
-          <button class="btn btn-sm btn-ghost" type="button" onclick="alert('Nächster Schritt: Filialen bearbeiten (UI + DB).');">Bearbeiten</button>
-          <a class="btn btn-sm btn-primary" href="/orders"><span class="btn-icon"></span>In Bestellungen nutzen</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- RULES -->
-<div class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Regeln & Sicherheit</div>
-      <div class="section-sub">Diese Einstellungen machen das System stabil und teamfähig.</div>
-    </div>
-  </div>
-
-  <div class="section-body">
-    <div class="card-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
-      <div class="card">
-        <h2>Mindestbestände</h2>
-        <p>Warnungen für Roh/Röst pro Sorte. Aktuell sind Schwellenwerte im UI gesetzt – als nächstes DB-Settings.</p>
-        <div class="row mt-3">
-          <button class="btn btn-sm btn-ghost" type="button" onclick="alert('Nächster Schritt: Mindestbestände pro Sorte speichern.');">Konfigurieren</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Benutzer & Rollen</h2>
-        <p>Admin, Filiale, B2B. Danach sehen Filialen nur ihre eigenen Daten.</p>
-        <div class="row mt-3">
-          <button class="btn btn-sm btn-primary" type="button" onclick="alert('Nächster Schritt: Rollen-Restriktionen aktivieren.');"><span class="btn-icon"></span>Aktivieren</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Exports</h2>
-        <p>CSV/PDF Exporte für Produktion und Audit Log. Nützlich für Abgleich und Dokumentation.</p>
-        <div class="row mt-3">
-          <button class="btn btn-sm btn-ghost" type="button" onclick="alert('Nächster Schritt: Export Module (CSV/PDF).');">Planen</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ROADMAP -->
-<div id="roadmap" class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Roadmap (nächste Schritte)</div>
-      <div class="section-sub">Wir gehen strukturiert weiter – ohne Design-Chaos und ohne Workflow-Brüche.</div>
-    </div>
-    <div class="spacer"></div>
-    <span class="badge info"><span class="dot"></span>UI fertig</span>
-  </div>
-
-  <div class="section-body">
-    <div class="card">
-      <h2>Was als nächstes kommt</h2>
-      <p>
-        1) Rollen restriktiv machen (Filiale sieht nur eigene Bestellungen)<br/>
-        2) Mindestbestände als DB-Settings (pro Sorte)<br/>
-        3) Exporte (CSV zuerst, PDF später)<br/>
-        4) Analytics: echte KPI Queries + Charts
-      </p>
-
-      <div class="row mt-3">
-        <a class="btn btn-primary" href="/orders"><span class="btn-icon"></span>Bestellungen</a>
-        <a class="btn btn-primary" href="/inventory"><span class="btn-icon"></span>Lager</a>
-        <a class="btn btn-primary" href="/production"><span class="btn-icon"></span>Produktion</a>
       </div>
     </div>
   </div>
