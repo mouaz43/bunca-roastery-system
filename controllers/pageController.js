@@ -7,7 +7,6 @@ function base(activeNav, title, subtitle) {
     pageTitle: title,
     pageSubtitle: subtitle,
     activeNav,
-    user: { role: "Admin", location: "Frankfurt" },
     systemStatus: { variant: "ok", text: "Betrieb normal" }
   };
 }
@@ -17,67 +16,99 @@ function q(req, key, fallback = "") {
   return v.trim() || fallback;
 }
 
-exports.renderHome = async (req, res) => {
-  res.render("home", Object.assign(base("dashboard", "Start", "Schneller Einstieg"), {
-    hintTitle: "Seitenhinweis",
-    hintLines: [
-      "Starten Sie bei Bestellungen. Freigaben erzeugen Produktionsbedarf.",
-      "Lager regelmäßig pflegen, damit Auslieferungen funktionieren."
-    ],
-    hintMeta: { left: "Workflow", right: "DB: aktiv" }
-  }));
-};
+function isShop(req) {
+  const u = req.session && req.session.user;
+  return u && u.role === "SHOP";
+}
+
+function getShopId(req) {
+  const u = req.session && req.session.user;
+  return u ? u.shopId : null;
+}
 
 exports.renderDashboard = async (req, res) => {
-  const orders = await store.listOrders();
-  const inv = await store.getInventory();
-  const demand = await store.computeRoastDemand();
-  const batches = await store.listBatches();
-  const activity = await store.listActivity();
+  const shopMode = isShop(req);
+  const shopId = getShopId(req);
 
-  res.render("dashboard", Object.assign(base("dashboard", "Dashboard", "Übersicht und Schnellaktionen"), {
+  // Pull data
+  const allOrders = await store.listOrders();
+  const inv = await store.getInventory();
+
+  // Filter orders for shop users
+  const orders = shopMode
+    ? allOrders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""))
+    : allOrders;
+
+  // Admin-only metrics: demand/batches/activity
+  let demandCount = 0;
+  let batchCount = 0;
+  let activityCount = 0;
+
+  if (!shopMode) {
+    const demand = await store.computeRoastDemand();
+    const batches = await store.listBatches();
+    const activity = await store.listActivity();
+    demandCount = demand.length;
+    batchCount = batches.length;
+    activityCount = activity.length;
+  }
+
+  res.render("dashboard", Object.assign(base("dashboard", "Dashboard", shopMode ? "Filial-Übersicht" : "Übersicht und Schnellaktionen"), {
     ordersCount: orders.length,
-    demandCount: demand.length,
-    batchCount: batches.length,
-    activityCount: activity.length,
+    demandCount,
+    batchCount,
+    activityCount,
     inventoryUpdatedAt: inv.updatedAt,
     hintTitle: "Seitenhinweis",
-    hintLines: [
-      "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
-      "Wenn etwas komisch ist: Aktivität zeigt jede Änderung."
-    ],
-    hintMeta: { left: "Persistente Daten", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
+    hintLines: shopMode
+      ? [
+          "Sie sehen nur Bestellungen Ihrer Filiale.",
+          "Neue Bestellung anlegen → Rösterei gibt frei und plant Produktion."
+        ]
+      : [
+          "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
+          "Aktivität zeigt jede Änderung."
+        ],
+    hintMeta: { left: shopMode ? "Rolle: Filiale" : "Rolle: Admin", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
   }));
 };
 
 exports.renderOrders = async (req, res) => {
+  const shopMode = isShop(req);
+  const shopId = getShopId(req);
+
   const all = await store.listOrders();
 
+  // Filters
   const search = q(req, "q", "");
   const status = q(req, "status", "ALL");
   const channel = q(req, "channel", "ALL");
   const shop = q(req, "shop", "ALL");
-  const range = q(req, "range", "30"); // days
+  const range = q(req, "range", "30");
 
   const days = Number(range);
   const since = Number.isFinite(days) ? Date.now() - days * 24 * 60 * 60 * 1000 : 0;
 
-  let orders = all.filter(o => {
+  let orders = all;
+
+  // Hard filter for Shop role
+  if (shopMode) {
+    orders = orders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""));
+  }
+
+  // Apply UI filters (admin + shop)
+  orders = orders.filter(o => {
     if (since && new Date(o.createdAt).getTime() < since) return false;
     if (status !== "ALL" && o.status !== status) return false;
-    if (channel !== "ALL" && o.channel !== channel) return false;
-    if (shop !== "ALL" && (o.shopId || "") !== shop) return false;
+
+    // Shop users always FILIALE; channel filter should not reveal others
+    if (!shopMode && channel !== "ALL" && o.channel !== channel) return false;
+    if (!shopMode && shop !== "ALL" && String(o.shopId || "") !== String(shop)) return false;
 
     if (search) {
       const s = search.toLowerCase();
       const hay = [
-        o.id,
-        o.status,
-        o.channel,
-        o.shopId,
-        o.customerName,
-        o.deliveryDate,
-        o.note,
+        o.id, o.status, o.channel, o.shopId, o.customerName, o.deliveryDate, o.note,
         ...(o.items || []).map(it => it.coffeeName)
       ].join(" ").toLowerCase();
       if (!hay.includes(s)) return false;
@@ -85,17 +116,22 @@ exports.renderOrders = async (req, res) => {
     return true;
   });
 
-  res.render("orders", Object.assign(base("orders", "Bestellungen", "Filiale und B2B Bestellungen verwalten"), {
+  res.render("orders", Object.assign(base("orders", "Bestellungen", shopMode ? "Nur Ihre Filiale" : "Filiale und B2B Bestellungen verwalten"), {
     orders,
     shops: store.SHOPS,
     coffees: store.COFFEES,
-    filters: { search, status, channel, shop, range },
+    filters: { search, status, channel: shopMode ? "FILIALE" : channel, shop: shopMode ? String(shopId || "ALL") : shop, range },
     hintTitle: "Seitenhinweis",
-    hintLines: [
-      "Mindestens 1 Position pro Bestellung.",
-      "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab."
-    ],
-    hintMeta: { left: "Filter aktiv", right: "Treffer: " + orders.length }
+    hintLines: shopMode
+      ? [
+          "Sie können nur Bestellungen für Ihre Filiale anlegen.",
+          "Freigabe und Auslieferung macht die Rösterei."
+        ]
+      : [
+          "Freigeben = zählt für Produktion. Ausliefern = zieht Röstkaffee ab.",
+          "Nutzen Sie Filter für schnelle Übersicht."
+        ],
+    hintMeta: { left: shopMode ? ("Filiale: " + shopId) : "Admin", right: "Treffer: " + orders.length }
   }));
 };
 
@@ -113,22 +149,28 @@ exports.renderProduction = async (req, res) => {
       "Charge ‘Geröstet’ bewegt Rohkaffee → Röstkaffee.",
       "Charge ‘Ausgeliefert’ reduziert Röstkaffee."
     ],
-    hintMeta: { left: "DB aktiv", right: "Chargen: " + batches.length }
+    hintMeta: { left: "Admin", right: "Chargen: " + batches.length }
   }));
 };
 
 exports.renderInventory = async (req, res) => {
   const inv = await store.getInventory();
+  const shopMode = isShop(req);
 
-  res.render("inventory", Object.assign(base("inventory", "Lager", "Bestände verwalten und Engpässe vermeiden"), {
+  res.render("inventory", Object.assign(base("inventory", "Lager", shopMode ? "Ansicht (nur Lesen)" : "Bestände verwalten und Engpässe vermeiden"), {
     inventory: inv,
     coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
-    hintLines: [
-      "Rohkaffee = grün. Röstkaffee = fertig.",
-      "Jede Änderung wird in Aktivität protokolliert."
-    ],
-    hintMeta: { left: "DB aktiv", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
+    hintLines: shopMode
+      ? [
+          "Filialen können Lager nur ansehen.",
+          "Bestandsänderungen macht die Rösterei (Admin)."
+        ]
+      : [
+          "Rohkaffee = grün. Röstkaffee = fertig.",
+          "Jede Änderung wird in Aktivität protokolliert."
+        ],
+    hintMeta: { left: shopMode ? "Rolle: Filiale" : "Rolle: Admin", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
   }));
 };
 
@@ -136,10 +178,10 @@ exports.renderAnalytics = async (req, res) => {
   res.render("analytics", Object.assign(base("analytics", "Analysen", "KPIs und Berichte"), {
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Als nächstes: Engpässe, Forecast, Shop-Vergleich.",
-      "Jetzt bauen wir Filter + Rollen."
+      "Reports werden als echte KPI-Queries umgesetzt.",
+      "Ziel: Entscheidungen schneller treffen."
     ],
-    hintMeta: { left: "DB aktiv", right: "Nächster Schritt: Login" }
+    hintMeta: { left: "Admin", right: "Roadmap aktiv" }
   }));
 };
 
@@ -149,10 +191,10 @@ exports.renderSettings = async (req, res) => {
     shops: store.SHOPS,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Stammdaten werden als DB-Editor erweitert.",
-      "Aktuell sind Sorten/Filialen per Seed gesetzt."
+      "Hier werden Sorten, Filialen und Regeln verwaltet.",
+      "Als nächstes: Benutzerverwaltung und Mindestbestände."
     ],
-    hintMeta: { left: "Admin", right: "DB aktiv" }
+    hintMeta: { left: "Admin", right: "Stammdaten" }
   }));
 };
 
@@ -160,8 +202,8 @@ exports.renderActivity = async (req, res) => {
   const all = await store.listActivity();
 
   const search = q(req, "q", "");
-  const area = q(req, "area", "ALL"); // ORDERS / INVENTORY / BATCHES
-  const range = q(req, "range", "7"); // days
+  const area = q(req, "area", "ALL");
+  const range = q(req, "range", "7");
 
   const days = Number(range);
   const since = Number.isFinite(days) ? Date.now() - days * 24 * 60 * 60 * 1000 : 0;
@@ -193,8 +235,8 @@ exports.renderActivity = async (req, res) => {
     hintTitle: "Seitenhinweis",
     hintLines: [
       "Audit Log: jede Aktion mit Zeit und Details.",
-      "Nutzen Sie Filter, um schnell Fehlerquellen zu finden."
+      "Nutzen Sie Filter, um schnell Vorgänge zu finden."
     ],
-    hintMeta: { left: "Filter aktiv", right: "Treffer: " + activity.length }
+    hintMeta: { left: "Admin", right: "Treffer: " + activity.length }
   }));
 };
