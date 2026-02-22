@@ -15,7 +15,6 @@ function toNum(v, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
-
 function clean(v) {
   return String(v ?? "").trim();
 }
@@ -128,10 +127,7 @@ async function updateCoffee({ id, name, packDefaultKg = 1 }) {
   );
 
   // Keep order display consistent
-  await db.query(
-    `UPDATE order_items SET coffee_name=$1 WHERE coffee_id=$2`,
-    [coffeeName, coffeeId]
-  );
+  await db.query(`UPDATE order_items SET coffee_name=$1 WHERE coffee_id=$2`, [coffeeName, coffeeId]);
 
   await log("MASTER_COFFEE_UPDATE", { coffeeId, name: coffeeName, packDefaultKg: pack });
   return true;
@@ -147,8 +143,8 @@ async function setCoffeeActive(coffeeId, isActive) {
 
 /**
  * HARD DELETE COFFEE
- * This will remove ALL related data so that FK constraints do not block deletion.
- * This is intentionally destructive and matches "delete whatever I want".
+ * Deletes dependent rows first to bypass FK constraints.
+ * Destructive by design.
  */
 async function deleteCoffee(coffeeId) {
   const id = clean(coffeeId);
@@ -156,12 +152,10 @@ async function deleteCoffee(coffeeId) {
 
   await db.query("BEGIN");
   try {
-    // Remove dependent rows first (avoid FK blocks)
     await db.query(`DELETE FROM order_items WHERE coffee_id=$1`, [id]);
     await db.query(`DELETE FROM batches WHERE coffee_id=$1`, [id]);
     await db.query(`DELETE FROM inventory WHERE coffee_id=$1`, [id]);
 
-    // Now delete the coffee itself
     const del = await db.query(`DELETE FROM coffees WHERE id=$1`, [id]);
 
     await log("MASTER_COFFEE_HARD_DELETE", { coffeeId: id, deleted: del.rowCount });
@@ -210,10 +204,11 @@ async function setShopActive(shopId, isActive) {
 }
 
 /**
- * HARD DELETE SHOP
- * Option A (implemented): delete all orders of that shop (and order_items cascade),
- * set users.shop_id to NULL (so users can be reassigned), then delete the shop.
- * If you prefer deleting users too, tell me and I'll switch to that.
+ * HARD DELETE SHOP (with USERS deletion)
+ * - Deletes orders of the shop (order_items cascade)
+ * - Deletes users of the shop
+ * - Deletes the shop
+ * Destructive by design.
  */
 async function deleteShop(shopId) {
   const id = clean(shopId);
@@ -224,13 +219,13 @@ async function deleteShop(shopId) {
     // Delete orders of this shop (order_items will cascade)
     await db.query(`DELETE FROM orders WHERE shop_id=$1`, [id]);
 
-    // Detach users from this shop (keep accounts, or reassign later)
-    await db.query(`UPDATE users SET shop_id = NULL WHERE shop_id=$1`, [id]);
+    // Delete all users of this shop
+    await db.query(`DELETE FROM users WHERE shop_id=$1`, [id]);
 
-    // Now delete shop
+    // Delete the shop
     const del = await db.query(`DELETE FROM shops WHERE id=$1`, [id]);
 
-    await log("MASTER_SHOP_HARD_DELETE", { shopId: id, deleted: del.rowCount });
+    await log("MASTER_SHOP_HARD_DELETE", { shopId: id, deleted: del.rowCount, usersDeleted: true });
     await db.query("COMMIT");
     return true;
   } catch (e) {
