@@ -11,19 +11,25 @@ async function ensureTable(sql) {
   await db.query(sql);
 }
 
+async function ensureColumn(sql) {
+  await db.query(sql).catch(() => {});
+}
+
 async function upsertCoffee(id, name, packDefaultKg = 1) {
   await db.query(
-    `INSERT INTO coffees (id, name, pack_default_kg)
-     VALUES ($1,$2,$3)
-     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, pack_default_kg = EXCLUDED.pack_default_kg`,
+    `INSERT INTO coffees (id, name, pack_default_kg, is_active)
+     VALUES ($1,$2,$3, TRUE)
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       pack_default_kg = EXCLUDED.pack_default_kg`,
     [id, name, packDefaultKg]
   );
 }
 
 async function upsertShop(id, name) {
   await db.query(
-    `INSERT INTO shops (id, name)
-     VALUES ($1,$2)
+    `INSERT INTO shops (id, name, is_active)
+     VALUES ($1,$2, TRUE)
      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
     [id, name]
   );
@@ -51,21 +57,26 @@ async function upsertUser({ email, name, role, shopId, password }) {
 }
 
 async function main() {
-  // Core tables
   await ensureTable(`
     CREATE TABLE IF NOT EXISTS coffees (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      pack_default_kg NUMERIC DEFAULT 1
+      pack_default_kg NUMERIC DEFAULT 1,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE
     );
   `);
 
   await ensureTable(`
     CREATE TABLE IF NOT EXISTS shops (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL
+      name TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE
     );
   `);
+
+  // If old DB already exists, ensure columns exist
+  await ensureColumn(`ALTER TABLE coffees ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`);
+  await ensureColumn(`ALTER TABLE shops ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`);
 
   await ensureTable(`
     CREATE TABLE IF NOT EXISTS inventory (
@@ -119,20 +130,18 @@ async function main() {
     );
   `);
 
-  // Auth tables
   await ensureTable(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL, -- ADMIN | SHOP | B2B
+      role TEXT NOT NULL,
       shop_id TEXT NULL REFERENCES shops(id),
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
-  // Session table for connect-pg-simple
   await ensureTable(`
     CREATE TABLE IF NOT EXISTS "session" (
       "sid" varchar NOT NULL COLLATE "default",
@@ -142,15 +151,10 @@ async function main() {
     WITH (OIDS=FALSE);
   `);
 
-  await ensureTable(`
-    ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");
-  `).catch(() => {});
+  await ensureTable(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");`).catch(() => {});
+  await ensureTable(`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");`);
 
-  await ensureTable(`
-    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-  `);
-
-  // Seed master data (edit later in Settings UI)
+  // Seed data
   await upsertShop("CITY", "City");
   await upsertShop("BERGER", "Berger Straße");
   await upsertShop("GRUEN", "Grüneburgweg");
@@ -159,22 +163,13 @@ async function main() {
   await upsertCoffee("FILTER", "Filter Blend", 1);
   await upsertCoffee("DECAF", "Decaf", 1);
 
-  // Ensure inventory rows exist
   const coffees = await db.query(`SELECT id FROM coffees`);
   for (const r of coffees.rows) await upsertInventory(r.id);
 
-  // Seed users
   const adminEmail = env("ADMIN_EMAIL", "admin@bunca.local");
   const adminPass = env("ADMIN_PASSWORD", "Admin123!");
-  await upsertUser({
-    email: adminEmail,
-    name: "Admin",
-    role: "ADMIN",
-    shopId: null,
-    password: adminPass
-  });
+  await upsertUser({ email: adminEmail, name: "Admin", role: "ADMIN", shopId: null, password: adminPass });
 
-  // Shop users (one per shop)
   const shopPass = env("SHOP_PASSWORD", "Shop123!");
   await upsertUser({ email: "city@bunca.local", name: "City", role: "SHOP", shopId: "CITY", password: shopPass });
   await upsertUser({ email: "berger@bunca.local", name: "Berger Straße", role: "SHOP", shopId: "BERGER", password: shopPass });
