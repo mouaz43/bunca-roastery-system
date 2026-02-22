@@ -7,21 +7,13 @@ function env(name, fallback = "") {
   return (process.env[name] || fallback).trim();
 }
 
-async function ensureTable(sql) {
-  await db.query(sql);
-}
-
-async function ensureColumn(sql) {
-  await db.query(sql).catch(() => {});
-}
+async function ensure(sql) { await db.query(sql); }
 
 async function upsertCoffee(id, name, packDefaultKg = 1) {
   await db.query(
     `INSERT INTO coffees (id, name, pack_default_kg, is_active)
      VALUES ($1,$2,$3, TRUE)
-     ON CONFLICT (id) DO UPDATE SET
-       name = EXCLUDED.name,
-       pack_default_kg = EXCLUDED.pack_default_kg`,
+     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, pack_default_kg=EXCLUDED.pack_default_kg`,
     [id, name, packDefaultKg]
   );
 }
@@ -30,7 +22,7 @@ async function upsertShop(id, name) {
   await db.query(
     `INSERT INTO shops (id, name, is_active)
      VALUES ($1,$2, TRUE)
-     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
+     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name`,
     [id, name]
   );
 }
@@ -57,7 +49,7 @@ async function upsertUser({ email, name, role, shopId, password }) {
 }
 
 async function main() {
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS coffees (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -66,7 +58,7 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS shops (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -74,11 +66,7 @@ async function main() {
     );
   `);
 
-  // If old DB already exists, ensure columns exist
-  await ensureColumn(`ALTER TABLE coffees ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`);
-  await ensureColumn(`ALTER TABLE shops ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`);
-
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS inventory (
       coffee_id TEXT PRIMARY KEY REFERENCES coffees(id) ON DELETE CASCADE,
       green_kg NUMERIC NOT NULL DEFAULT 0,
@@ -86,7 +74,7 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS orders (
       id UUID PRIMARY KEY,
       channel TEXT NOT NULL,
@@ -99,7 +87,7 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS order_items (
       id UUID PRIMARY KEY,
       order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -109,7 +97,7 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS batches (
       id UUID PRIMARY KEY,
       coffee_id TEXT NOT NULL REFERENCES coffees(id),
@@ -121,7 +109,7 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS activity (
       id UUID PRIMARY KEY,
       at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -130,7 +118,7 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -142,7 +130,20 @@ async function main() {
     );
   `);
 
-  await ensureTable(`
+  await ensure(`
+    CREATE TABLE IF NOT EXISTS b2b_customers (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      note TEXT DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  // Session
+  await ensure(`
     CREATE TABLE IF NOT EXISTS "session" (
       "sid" varchar NOT NULL COLLATE "default",
       "sess" json NOT NULL,
@@ -150,11 +151,10 @@ async function main() {
     )
     WITH (OIDS=FALSE);
   `);
+  await ensure(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");`).catch(() => {});
+  await ensure(`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");`);
 
-  await ensureTable(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");`).catch(() => {});
-  await ensureTable(`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");`);
-
-  // Seed data
+  // Seed
   await upsertShop("CITY", "City");
   await upsertShop("BERGER", "Berger Straße");
   await upsertShop("GRUEN", "Grüneburgweg");
@@ -169,11 +169,6 @@ async function main() {
   const adminEmail = env("ADMIN_EMAIL", "admin@bunca.local");
   const adminPass = env("ADMIN_PASSWORD", "Admin123!");
   await upsertUser({ email: adminEmail, name: "Admin", role: "ADMIN", shopId: null, password: adminPass });
-
-  const shopPass = env("SHOP_PASSWORD", "Shop123!");
-  await upsertUser({ email: "city@bunca.local", name: "City", role: "SHOP", shopId: "CITY", password: shopPass });
-  await upsertUser({ email: "berger@bunca.local", name: "Berger Straße", role: "SHOP", shopId: "BERGER", password: shopPass });
-  await upsertUser({ email: "gruen@bunca.local", name: "Grüneburgweg", role: "SHOP", shopId: "GRUEN", password: shopPass });
 
   console.log("DB init done.");
 }
