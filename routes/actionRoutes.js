@@ -5,8 +5,10 @@ const router = express.Router();
 const actionController = require("../controllers/actionController");
 const adminController = require("../controllers/adminController");
 const masterController = require("../controllers/masterController");
-const b2bController = require("../controllers/b2bController");
 const { requireAuth, requireRole } = require("../middleware/auth");
+
+let b2bController = null;
+try { b2bController = require("../controllers/b2bController"); } catch (_) { b2bController = null; }
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -27,6 +29,8 @@ router.post("/batches/:id/delete", requireAuth, requireRole("ADMIN"), wrap(actio
 
 // Users (Admin)
 router.post("/users/create", requireAuth, requireRole("ADMIN"), wrap(adminController.createUser));
+router.post("/users/update", requireAuth, requireRole("ADMIN"), wrap(adminController.updateUser));
+router.post("/users/set-password", requireAuth, requireRole("ADMIN"), wrap(adminController.setPassword));
 router.post("/users/delete", requireAuth, requireRole("ADMIN"), wrap(adminController.deleteUser));
 router.post("/users/reset-password", requireAuth, requireRole("ADMIN"), wrap(adminController.resetPassword));
 
@@ -39,9 +43,11 @@ router.post("/masters/shop/create", requireAuth, requireRole("ADMIN"), wrap(mast
 router.post("/masters/shop/update", requireAuth, requireRole("ADMIN"), wrap(masterController.updateShop));
 router.post("/masters/shop/delete", requireAuth, requireRole("ADMIN"), wrap(masterController.deleteShop));
 
-// B2B Customers (Admin)
-router.post("/b2b/create", requireAuth, requireRole("ADMIN"), wrap(b2bController.create));
-router.post("/b2b/update", requireAuth, requireRole("ADMIN"), wrap(b2bController.update));
-router.post("/b2b/delete", requireAuth, requireRole("ADMIN"), wrap(b2bController.remove));
+// Optional B2B (if you have it)
+if (b2bController) {
+  router.post("/b2b/create", requireAuth, requireRole("ADMIN"), wrap(b2bController.create));
+  router.post("/b2b/update", requireAuth, requireRole("ADMIN"), wrap(b2bController.update));
+  router.post("/b2b/delete", requireAuth, requireRole("ADMIN"), wrap(b2bController.remove));
+}
 
 module.exports = router;
