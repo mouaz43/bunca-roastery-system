@@ -5,8 +5,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= (typeof pageTitle !== "undefined" && pageTitle) ? pageTitle : "Bunca Rösterei" %></title>
-  <link rel="stylesheet" href="/css/app.css?v=latte-pro-1" />
-  <script defer src="/js/app.js?v=latte-pro-1"></script>
+
+  <link rel="stylesheet" href="/css/app.css?v=latte-pro-v2" />
+  <script defer src="/js/app.js?v=latte-pro-v2"></script>
 </head>
 
 <body>
@@ -15,6 +16,9 @@
     const title = (typeof pageTitle !== "undefined") ? pageTitle : "";
     const subtitle = (typeof pageSubtitle !== "undefined") ? pageSubtitle : "";
     const user = (typeof currentUser !== "undefined") ? currentUser : null;
+
+    const isAdmin = user && user.role === "ADMIN";
+    const isShop = user && user.role === "SHOP";
 
     const primary = (typeof primaryAction !== "undefined") ? primaryAction : null;
     const secondary = (typeof secondaryAction !== "undefined") ? secondaryAction : null;
@@ -36,18 +40,26 @@
       <nav class="nav">
         <a class="nav-link <%= active==='dashboard'?'is-active':'' %>" href="/dashboard">Dashboard</a>
         <a class="nav-link <%= active==='orders'?'is-active':'' %>" href="/orders">Bestellungen</a>
-        <a class="nav-link <%= active==='production'?'is-active':'' %>" href="/production">Produktion</a>
-        <a class="nav-link <%= active==='inventory'?'is-active':'' %>" href="/inventory">Lager</a>
-        <a class="nav-link <%= active==='analytics'?'is-active':'' %>" href="/analytics">Analysen</a>
-        <a class="nav-link <%= active==='settings'?'is-active':'' %>" href="/settings">Einstellungen</a>
-        <a class="nav-link <%= active==='activity'?'is-active':'' %>" href="/activity">Aktivität</a>
+
+        <% if (isAdmin) { %>
+          <a class="nav-link <%= active==='production'?'is-active':'' %>" href="/production">Produktion</a>
+          <a class="nav-link <%= active==='inventory'?'is-active':'' %>" href="/inventory">Lager</a>
+          <a class="nav-link <%= active==='analytics'?'is-active':'' %>" href="/analytics">Analysen</a>
+          <a class="nav-link <%= active==='settings'?'is-active':'' %>" href="/settings">Einstellungen</a>
+          <a class="nav-link <%= active==='activity'?'is-active':'' %>" href="/activity">Aktivität</a>
+        <% } %>
       </nav>
 
       <div class="side-card">
         <% if (user) { %>
           <div class="meta-label">Eingeloggt als</div>
           <div class="meta-value"><%= user.name %></div>
-          <div class="meta-sub">Rolle: <strong><%= user.role %></strong></div>
+          <div class="meta-sub">
+            Rolle: <strong><%= user.role %></strong>
+            <% if (isShop && user.shopId) { %>
+              · Filiale: <strong><%= user.shopId %></strong>
+            <% } %>
+          </div>
 
           <form method="POST" action="/logout" class="mt-3">
             <button class="btn btn-ghost w-full" type="submit">
@@ -77,6 +89,7 @@
           <% if (secondary && secondary.href && secondary.label) { %>
             <a class="btn btn-sm btn-ghost" href="<%= secondary.href %>"><%= secondary.label %></a>
           <% } %>
+
           <% if (primary && primary.href && primary.label) { %>
             <a class="btn btn-primary" href="<%= primary.href %>">
               <span class="btn-icon" aria-hidden="true"></span>
@@ -98,13 +111,17 @@
               <div class="helper-line"><%= line %></div>
             <% }) %>
           <% } else { %>
-            <div class="helper-line">Diese Seite zeigt die wichtigsten Aktionen und Daten für den aktuellen Schritt.</div>
+            <div class="helper-line">
+              <% if (isShop) { %>
+                Sie können Bestellungen anlegen und den Status verfolgen. Produktion und Lagerverwaltung macht die Rösterei.
+              <% } else { %>
+                Admin: Sie können Bestellungen, Produktion und Lager vollständig steuern.
+              <% } %>
+            </div>
           <% } %>
         </div>
       </footer>
     </main>
   </div>
-
-  <div class="toast-host" id="toastHost" style="display:none;"></div>
 </body>
 </html>
