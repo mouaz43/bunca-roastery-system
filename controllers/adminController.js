@@ -3,20 +3,14 @@ const bcrypt = require("bcryptjs");
 const { randomUUID } = require("crypto");
 const db = require("../db");
 
-function clean(v) {
-  return String(v ?? "").trim();
-}
+function clean(v) { return String(v ?? "").trim(); }
 
 function red(res, params) {
   const qs = new URLSearchParams(params).toString();
   return res.redirect("/settings" + (qs ? `?${qs}` : ""));
 }
-function ok(res, msg, extra = {}) {
-  return red(res, { tab: "users", user_ok: msg, ...extra });
-}
-function err(res, msg, extra = {}) {
-  return red(res, { tab: "users", user_error: msg, ...extra });
-}
+function ok(res, msg) { return red(res, { tab: "users", user_ok: msg }); }
+function err(res, msg) { return red(res, { tab: "users", user_error: msg }); }
 
 function makeTempPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#";
@@ -55,7 +49,6 @@ exports.createUser = async (req, res) => {
 
   if (!name || !email || !role || !password) return err(res, "Bitte alle Pflichtfelder ausfüllen.");
   if (!["ADMIN", "SHOP"].includes(role)) return err(res, "Ungültige Rolle.");
-
   if (role === "SHOP" && !shopId) return err(res, "Für Filiale bitte Shop auswählen.");
 
   const existing = await db.query("SELECT id FROM users WHERE email=$1", [email]);
@@ -72,11 +65,43 @@ exports.createUser = async (req, res) => {
   return ok(res, "Benutzer erstellt.");
 };
 
+exports.updateUser = async (req, res) => {
+  const id = clean(req.body.id);
+  const name = clean(req.body.name);
+  const role = clean(req.body.role);
+  const shopId = clean(req.body.shopId) || null;
+
+  if (!id) return err(res, "User ID fehlt.");
+  if (!name) return err(res, "Name fehlt.");
+  if (!["ADMIN", "SHOP"].includes(role)) return err(res, "Ungültige Rolle.");
+
+  // prevent last admin being demoted to SHOP
+  const target = await db.query(`SELECT role FROM users WHERE id=$1`, [id]);
+  if (!target.rows.length) return err(res, "Benutzer nicht gefunden.");
+
+  if (target.rows[0].role === "ADMIN" && role !== "ADMIN") {
+    const admins = await countAdmins();
+    if (admins <= 1) return err(res, "Letzter Admin kann nicht zur Filiale gemacht werden.");
+  }
+
+  if (role === "SHOP" && !shopId) return err(res, "Für Filiale bitte Shop auswählen.");
+  const finalShop = (role === "SHOP") ? shopId : null;
+
+  await db.query(
+    `UPDATE users
+     SET name=$1, role=$2, shop_id=$3
+     WHERE id=$4`,
+    [name, role, finalShop, id]
+  );
+
+  return ok(res, "Benutzer gespeichert.");
+};
+
 exports.deleteUser = async (req, res) => {
   const id = clean(req.body.id);
   if (!id) return err(res, "User ID fehlt.");
 
-  const target = await db.query(`SELECT role, email FROM users WHERE id=$1`, [id]);
+  const target = await db.query(`SELECT role FROM users WHERE id=$1`, [id]);
   if (!target.rows.length) return err(res, "Benutzer nicht gefunden.");
 
   if (target.rows[0].role === "ADMIN") {
@@ -100,4 +125,20 @@ exports.resetPassword = async (req, res) => {
 
   await db.query(`UPDATE users SET password_hash=$1 WHERE id=$2`, [hash, id]);
   return ok(res, `Passwort zurückgesetzt. Temporäres Passwort für ${target.rows[0].email}: ${temp}`);
+};
+
+exports.setPassword = async (req, res) => {
+  const id = clean(req.body.id);
+  const password = clean(req.body.password);
+
+  if (!id) return err(res, "User ID fehlt.");
+  if (!password || password.length < 8) return err(res, "Passwort zu kurz (mind. 8 Zeichen).");
+
+  const target = await db.query(`SELECT email FROM users WHERE id=$1`, [id]);
+  if (!target.rows.length) return err(res, "Benutzer nicht gefunden.");
+
+  const hash = await bcrypt.hash(password, 12);
+  await db.query(`UPDATE users SET password_hash=$1 WHERE id=$2`, [hash, id]);
+
+  return ok(res, `Passwort gesetzt für ${target.rows[0].email}.`);
 };
