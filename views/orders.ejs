@@ -36,8 +36,7 @@
     return st || "-";
   }
 
-  function statusBadgeClass(st){
-    // use existing badge styles; keep it simple and consistent
+  function badgeClass(st){
     if (st==="FREIGEGEBEN" || st==="AUSGELIEFERT") return "badge ok";
     return "badge";
   }
@@ -50,229 +49,375 @@
     if (o.channel==="B2B") return (o.customerName || "B2B Kunde");
     return (o.shopId || "Filiale");
   }
+
+  function toFixed1(n){
+    n = Number(n||0);
+    return (Math.round(n*10)/10).toFixed(1);
+  }
 %>
 
-<% if (errMsg) { %>
-  <div class="card" style="border-color: rgba(255,77,77,.35);">
-    <h2>Fehler</h2>
-    <p><%= errMsg %></p>
-  </div>
-<% } %>
+<style>
+  /* Mobile/tablet-first layout helpers (scoped to Orders page) */
+  .orders-shell{ display:grid; gap:14px; }
+  .orders-grid{ display:grid; gap:14px; grid-template-columns: 1fr; }
+  .orders-left, .orders-right{ min-width:0; }
 
-<% if (okMsg) { %>
-  <div class="card" style="border-color: rgba(38,201,122,.35);">
-    <h2>OK</h2>
-    <p><%= okMsg %></p>
-  </div>
-<% } %>
+  @media (min-width: 1100px){
+    .orders-grid{ grid-template-columns: 460px 1fr; }
+  }
 
-<div class="card-grid" style="grid-template-columns: 440px 1fr; align-items:start;">
+  .seg{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .seg .btn{ height:42px; border-radius:16px; }
+  .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 12px; border-radius:999px;
+    border:1px solid rgba(0,0,0,.08);
+    background: rgba(255,255,255,.55);
+    font-weight:800; font-size:12px;
+  }
+  .pill .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
+  .pill.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
+  .pill.ok .dot{ background: rgba(38,201,122,.9); }
 
-  <!-- LEFT: Inbox -->
-  <div class="card">
-    <div class="row" style="justify-content:space-between; align-items:flex-start;">
-      <div>
-        <h2 style="margin:0;">Bestellungen</h2>
-        <div class="small-note">Inbox-Ansicht. Offene Bestellungen oben, schnelle Filter.</div>
-      </div>
-      <div class="badge <%= shopMode ? 'ok' : '' %>">
-        <span class="dot"></span>
-        <%= shopMode ? ("Filiale: " + shopId) : "Admin" %>
-      </div>
+  .inbox{ display:grid; gap:10px; }
+  .order-card{
+    border:1px solid rgba(0,0,0,.07);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.6);
+  }
+  .order-card.active{
+    border-color: rgba(200,163,106,.35);
+    background: linear-gradient(180deg, rgba(200,163,106,.14), rgba(255,255,255,.55));
+  }
+  .order-card:hover{ text-decoration:none; }
+
+  .kpi-row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .kpi{
+    border:1px solid rgba(0,0,0,.06);
+    background: rgba(255,255,255,.55);
+    border-radius:18px;
+    padding:12px;
+  }
+  .kpi .label{ font-size:12px; opacity:.7; font-weight:800; }
+  .kpi .value{ font-size:18px; font-weight:950; margin-top:4px; }
+
+  .stack{ display:grid; gap:10px; }
+  .field{ display:grid; gap:6px; }
+  .field .label{ font-size:12px; font-weight:900; opacity:.75; }
+
+  .items{
+    display:grid; gap:10px;
+  }
+  .item-row{
+    display:grid;
+    grid-template-columns: 1fr 110px 46px;
+    gap:10px;
+    align-items:center;
+  }
+  @media (min-width: 700px){
+    .item-row{ grid-template-columns: 1fr 140px 110px; }
+  }
+
+  .icon-btn{
+    height:46px;
+    width:46px;
+    border-radius:16px;
+    border:1px solid rgba(0,0,0,.10);
+    background: rgba(255,255,255,.65);
+    cursor:pointer;
+    font-weight:950;
+  }
+
+  .sticky-bar{
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding-top: 12px;
+    background: linear-gradient(180deg, rgba(0,0,0,0), rgba(255,255,255,.85) 35%, rgba(255,255,255,.95));
+    backdrop-filter: blur(6px);
+  }
+  .sticky-inner{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:22px;
+    padding:12px;
+    background: rgba(255,255,255,.75);
+    display:flex;
+    gap:10px;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+  .primary-wide{
+    min-width: 220px;
+    height: 46px;
+    border-radius: 18px;
+    font-weight: 950;
+  }
+  .ghost-wide{
+    height: 46px;
+    border-radius: 18px;
+  }
+
+  .collapse{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    background: rgba(255,255,255,.55);
+    padding:12px;
+  }
+  .collapse summary{
+    cursor:pointer;
+    font-weight:950;
+    list-style:none;
+  }
+  .collapse summary::-webkit-details-marker{ display:none; }
+</style>
+
+<div class="orders-shell">
+
+  <% if (errMsg) { %>
+    <div class="card" style="border-color: rgba(255,77,77,.35);">
+      <h2>Fehler</h2>
+      <p><%= errMsg %></p>
     </div>
+  <% } %>
 
-    <form method="GET" action="/orders" class="mt-3">
-      <div style="display:grid; gap:10px;">
-        <input class="input" name="q" placeholder="Suche (ID, Kunde, Notiz, Sorte...)" value="<%= filters.search %>"/>
-
-        <div class="row" style="gap:10px;">
-          <select class="select" name="status" style="flex:1;">
-            <option value="ALL" <%= filters.status==="ALL"?"selected":"" %>>Status: Alle</option>
-            <option value="EINGEGANGEN" <%= filters.status==="EINGEGANGEN"?"selected":"" %>>Eingegangen</option>
-            <option value="FREIGEGEBEN" <%= filters.status==="FREIGEGEBEN"?"selected":"" %>>Freigegeben</option>
-            <option value="IN_PRODUKTION" <%= filters.status==="IN_PRODUKTION"?"selected":"" %>>In Produktion</option>
-            <option value="VERPACKT" <%= filters.status==="VERPACKT"?"selected":"" %>>Verpackt</option>
-            <option value="AUSGELIEFERT" <%= filters.status==="AUSGELIEFERT"?"selected":"" %>>Ausgeliefert</option>
-          </select>
-
-          <select class="select" name="range" style="width:150px;">
-            <option value="7" <%= filters.range==="7"?"selected":"" %>>Letzte 7 Tage</option>
-            <option value="30" <%= filters.range==="30"?"selected":"" %>>Letzte 30 Tage</option>
-            <option value="90" <%= filters.range==="90"?"selected":"" %>>Letzte 90 Tage</option>
-          </select>
-        </div>
-
-        <% if (!shopMode) { %>
-          <div class="row" style="gap:10px;">
-            <select class="select" name="channel" style="flex:1;">
-              <option value="ALL" <%= filters.channel==="ALL"?"selected":"" %>>Kanal: Alle</option>
-              <option value="FILIALE" <%= filters.channel==="FILIALE"?"selected":"" %>>Filiale</option>
-              <option value="B2B" <%= filters.channel==="B2B"?"selected":"" %>>B2B</option>
-            </select>
-
-            <select class="select" name="shop" style="flex:1;">
-              <option value="ALL" <%= filters.shop==="ALL"?"selected":"" %>>Filiale: Alle</option>
-              <% for (var s=0;s<shops.length;s++) { %>
-                <option value="<%= shops[s].id %>" <%= String(filters.shop)===String(shops[s].id)?"selected":"" %>><%= shops[s].name %></option>
-              <% } %>
-            </select>
-          </div>
-        <% } %>
-
-        <button class="btn btn-primary" type="submit">Filtern</button>
-      </div>
-    </form>
-
-    <div class="mt-3" style="display:grid; gap:10px;">
-      <% if (!orders.length) { %>
-        <div class="small-note">Keine Bestellungen gefunden.</div>
-      <% } %>
-
-      <% for (var i=0;i<orders.length;i++) { 
-           var o = orders[i];
-           var isSel = selectedOrder && String(selectedOrder.id)===String(o.id);
-      %>
-        <a class="nav-item <%= isSel?'active':'' %>" style="text-decoration:none;" href="<%= buildLink('order='+esc(o.id)) %>">
-          <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
-            <div class="row" style="justify-content:space-between;">
-              <div style="font-weight:950;"><%= whoLabel(o) %></div>
-              <span class="<%= statusBadgeClass(o.status) %>">
-                <span class="dot"></span><%= statusLabel(o.status) %>
-              </span>
-            </div>
-            <div class="row" style="justify-content:space-between; gap:10px;">
-              <div class="small-note mono"><%= o.deliveryDate %></div>
-              <div class="small-note"><%= channelLabel(o.channel) %> · <span class="mono"><%= (o.items||[]).length %></span> Pos</div>
-            </div>
-            <div class="small-note mono" style="opacity:.7;"><%= o.id %></div>
-          </div>
-        </a>
-      <% } %>
+  <% if (okMsg) { %>
+    <div class="card" style="border-color: rgba(38,201,122,.35);">
+      <h2>OK</h2>
+      <p><%= okMsg %></p>
     </div>
-  </div>
+  <% } %>
 
-  <!-- RIGHT: Editor -->
-  <div class="card">
-    <div class="row" style="justify-content:space-between; align-items:flex-start;">
-      <div>
-        <h2 style="margin:0;"><%= selectedOrder ? "Bestellung" : "Neue Bestellung" %></h2>
-        <div class="small-note">
-          <%= shopMode ? "Filiale erstellt Bestellungen und verfolgt den Status." : "Admin kann erstellen, freigeben, Status setzen und ausliefern." %>
+  <div class="orders-grid">
+
+    <!-- LEFT: Inbox -->
+    <div class="orders-left card">
+      <div class="row" style="justify-content:space-between; align-items:flex-start;">
+        <div>
+          <h2 style="margin:0;">Bestellungen</h2>
+          <div class="small-note">Schnell finden, tippen, bearbeiten. Optimiert für Tablet.</div>
         </div>
+        <span class="pill <%= shopMode ? 'ok' : '' %>">
+          <span class="dot"></span><%= shopMode ? ("Filiale: " + shopId) : "Admin" %>
+        </span>
       </div>
 
-      <% if (selectedOrder) { %>
-        <span class="<%= statusBadgeClass(selectedOrder.status) %>"><span class="dot"></span><%= statusLabel(selectedOrder.status) %></span>
-      <% } else { %>
-        <span class="badge ok"><span class="dot"></span><%= shopMode ? "FILIALE" : "Erstellen" %></span>
-      <% } %>
-    </div>
+      <details class="collapse mt-3" open>
+        <summary>Filter</summary>
+        <form method="GET" action="/orders" class="mt-3">
+          <div class="stack">
+            <input class="input" name="q" placeholder="Suche (ID, Kunde, Notiz, Sorte...)" value="<%= filters.search %>"/>
 
-    <% if (selectedOrder) { %>
+            <div class="row" style="gap:10px; flex-wrap:wrap;">
+              <select class="select" name="status" style="flex:1; min-width:220px;">
+                <option value="ALL" <%= filters.status==="ALL"?"selected":"" %>>Status: Alle</option>
+                <option value="EINGEGANGEN" <%= filters.status==="EINGEGANGEN"?"selected":"" %>>Eingegangen</option>
+                <option value="FREIGEGEBEN" <%= filters.status==="FREIGEGEBEN"?"selected":"" %>>Freigegeben</option>
+                <option value="IN_PRODUKTION" <%= filters.status==="IN_PRODUKTION"?"selected":"" %>>In Produktion</option>
+                <option value="VERPACKT" <%= filters.status==="VERPACKT"?"selected":"" %>>Verpackt</option>
+                <option value="AUSGELIEFERT" <%= filters.status==="AUSGELIEFERT"?"selected":"" %>>Ausgeliefert</option>
+              </select>
 
-      <!-- ORDER DETAILS VIEW -->
-      <div class="card mt-3">
-        <div class="row" style="justify-content:space-between;">
-          <div>
-            <div class="small-note">ID</div>
-            <div class="mono" style="font-weight:950;"><%= selectedOrder.id %></div>
-          </div>
-          <div class="small-note">
-            Lieferdatum: <span class="mono"><%= selectedOrder.deliveryDate %></span>
-          </div>
-        </div>
-
-        <div class="mt-2 small-note">
-          Kanal: <span class="mono"><%= selectedOrder.channel %></span> ·
-          <%= selectedOrder.channel==="B2B"
-                ? ("Kunde: <span class='mono'>"+(selectedOrder.customerName||"-")+"</span>")
-                : ("Filiale: <span class='mono'>"+(selectedOrder.shopId||"-")+"</span>") %>
-        </div>
-
-        <% if (selectedOrder.note) { %>
-          <div class="mt-2 small-note">Notiz: <%= selectedOrder.note %></div>
-        <% } %>
-
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 160px;">
-            <div>Position</div>
-            <div class="right">Menge (kg)</div>
-          </div>
-          <% for (var k=0;k<(selectedOrder.items||[]).length;k++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 160px;">
-              <div>
-                <div style="font-weight:950;"><%= selectedOrder.items[k].coffeeName %></div>
-                <div class="small-note mono"><%= selectedOrder.items[k].coffeeId %></div>
-              </div>
-              <div class="right mono"><%= selectedOrder.items[k].kg %></div>
-            </div>
-          <% } %>
-        </div>
-
-        <div class="row mt-3" style="gap:10px; flex-wrap:wrap;">
-          <% if (!shopMode) { %>
-            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/approve">
-              <button class="btn btn-ghost" type="submit">Freigeben</button>
-            </form>
-
-            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/advance">
-              <button class="btn btn-primary" type="submit">Nächster Status</button>
-            </form>
-
-            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/deliver"
-                  onsubmit="return confirm('Ausliefern? (zieht Röstkaffee ab)');">
-              <button class="btn btn-ghost" type="submit">Ausliefern</button>
-            </form>
-
-            <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/delete"
-                  onsubmit="return confirm('Bestellung löschen?');">
-              <button class="btn btn-danger" type="submit">Löschen</button>
-            </form>
-          <% } else { %>
-            <div class="small-note">Filialen können Status nur ansehen. Freigabe/Produktion/Auslieferung macht die Rösterei.</div>
-          <% } %>
-
-          <a class="btn btn-ghost" href="<%= buildLink('') %>">Neue Bestellung</a>
-        </div>
-      </div>
-
-    <% } else { %>
-
-      <!-- CREATE ORDER WIZARD -->
-      <form id="orderForm" method="POST" action="/actions/orders/create">
-        <input type="hidden" name="payload" id="payload" value="" />
-        <input type="hidden" id="deliveryDate" value="" />
-
-        <!-- Step 1: Details -->
-        <div class="card mt-3">
-          <div class="row" style="justify-content:space-between;">
-            <h2 style="margin:0;">1) Details</h2>
-            <div class="small-note">Lieferdatum + Empfänger</div>
-          </div>
-
-          <div class="mt-3" style="display:grid; gap:10px;">
-            <div class="row" style="gap:10px; align-items:center;">
-              <% if (!shopMode) { %>
-                <select class="select" id="channel" style="width:220px;">
-                  <option value="FILIALE">Kanal: Filiale</option>
-                  <option value="B2B">Kanal: B2B</option>
-                </select>
-              <% } else { %>
-                <span class="badge ok"><span class="dot"></span>FILIALE</span>
-              <% } %>
-
-              <div style="flex:1;"></div>
-
-              <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
-                <div class="small-note">Lieferdatum</div>
-                <input class="input" id="deliveryDateUI" type="date" />
-              </div>
+              <select class="select" name="range" style="min-width:200px;">
+                <option value="7" <%= filters.range==="7"?"selected":"" %>>Letzte 7 Tage</option>
+                <option value="30" <%= filters.range==="30"?"selected":"" %>>Letzte 30 Tage</option>
+                <option value="90" <%= filters.range==="90"?"selected":"" %>>Letzte 90 Tage</option>
+              </select>
             </div>
 
             <% if (!shopMode) { %>
-              <div id="rowShop" class="row" style="gap:10px;">
-                <div style="flex:1;">
-                  <div class="small-note">Filiale</div>
+              <div class="row" style="gap:10px; flex-wrap:wrap;">
+                <select class="select" name="channel" style="flex:1; min-width:200px;">
+                  <option value="ALL" <%= filters.channel==="ALL"?"selected":"" %>>Kanal: Alle</option>
+                  <option value="FILIALE" <%= filters.channel==="FILIALE"?"selected":"" %>>Filiale</option>
+                  <option value="B2B" <%= filters.channel==="B2B"?"selected":"" %>>B2B</option>
+                </select>
+
+                <select class="select" name="shop" style="flex:1; min-width:200px;">
+                  <option value="ALL" <%= filters.shop==="ALL"?"selected":"" %>>Filiale: Alle</option>
+                  <% for (var s=0;s<shops.length;s++) { %>
+                    <option value="<%= shops[s].id %>" <%= String(filters.shop)===String(shops[s].id)?"selected":"" %>><%= shops[s].name %></option>
+                  <% } %>
+                </select>
+              </div>
+            <% } %>
+
+            <button class="btn btn-primary" type="submit" style="height:46px; border-radius:18px;">Anwenden</button>
+          </div>
+        </form>
+      </details>
+
+      <div class="kpi-row mt-3">
+        <div class="kpi">
+          <div class="label">Treffer</div>
+          <div class="value"><%= orders.length %></div>
+        </div>
+        <div class="kpi">
+          <div class="label">Auswahl</div>
+          <div class="value"><%= selectedOrder ? "1" : "0" %></div>
+        </div>
+      </div>
+
+      <div class="inbox mt-3">
+        <% if (!orders.length) { %>
+          <div class="small-note">Keine Bestellungen gefunden.</div>
+        <% } %>
+
+        <% for (var i=0;i<orders.length;i++) {
+             var o = orders[i];
+             var isSel = selectedOrder && String(selectedOrder.id)===String(o.id);
+        %>
+          <a class="order-card <%= isSel ? 'active' : '' %>" style="text-decoration:none;"
+             href="<%= buildLink('order='+esc(o.id)) %>">
+            <div class="row" style="justify-content:space-between; align-items:flex-start; gap:10px;">
+              <div style="min-width:0;">
+                <div style="font-weight:950; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  <%= whoLabel(o) %>
+                </div>
+                <div class="small-note">
+                  <span class="mono"><%= o.deliveryDate %></span> · <%= channelLabel(o.channel) %> · <span class="mono"><%= (o.items||[]).length %></span> Pos
+                </div>
+              </div>
+
+              <span class="<%= badgeClass(o.status) %>" style="white-space:nowrap;">
+                <span class="dot"></span><%= statusLabel(o.status) %>
+              </span>
+            </div>
+
+            <div class="small-note mono" style="opacity:.65; margin-top:8px;"><%= o.id %></div>
+          </a>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- RIGHT: Create / Details -->
+    <div class="orders-right card">
+
+      <div class="row" style="justify-content:space-between; align-items:flex-start;">
+        <div>
+          <h2 style="margin:0;"><%= selectedOrder ? "Bestellung Details" : "Neue Bestellung" %></h2>
+          <div class="small-note">
+            <%= shopMode ? "Filiale kann Bestellungen anlegen und Status verfolgen." : "Admin steuert Status und Auslieferung." %>
+          </div>
+        </div>
+
+        <% if (selectedOrder) { %>
+          <span class="<%= badgeClass(selectedOrder.status) %>"><span class="dot"></span><%= statusLabel(selectedOrder.status) %></span>
+        <% } else { %>
+          <span class="pill ok"><span class="dot"></span>Erstellen</span>
+        <% } %>
+      </div>
+
+      <% if (selectedOrder) { %>
+
+        <!-- DETAILS VIEW -->
+        <div class="card mt-3">
+          <div class="row" style="justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div>
+              <div class="small-note">ID</div>
+              <div class="mono" style="font-weight:950;"><%= selectedOrder.id %></div>
+            </div>
+            <div>
+              <div class="small-note">Lieferdatum</div>
+              <div class="mono" style="font-weight:950;"><%= selectedOrder.deliveryDate %></div>
+            </div>
+          </div>
+
+          <div class="mt-3 small-note">
+            Kanal: <span class="mono"><%= selectedOrder.channel %></span> ·
+            <%= selectedOrder.channel==="B2B"
+                  ? ("Kunde: <span class='mono'>"+(selectedOrder.customerName||"-")+"</span>")
+                  : ("Filiale: <span class='mono'>"+(selectedOrder.shopId||"-")+"</span>") %>
+          </div>
+
+          <% if (selectedOrder.note) { %>
+            <div class="mt-2 small-note">Notiz: <%= selectedOrder.note %></div>
+          <% } %>
+        </div>
+
+        <div class="card mt-3">
+          <h2>Positionen</h2>
+          <div class="items mt-3">
+            <% 
+              var total = 0;
+              for (var k=0;k<(selectedOrder.items||[]).length;k++){
+                total += Number(selectedOrder.items[k].kg || 0);
+            %>
+              <div class="order-card" style="padding:12px;">
+                <div style="font-weight:950;"><%= selectedOrder.items[k].coffeeName %></div>
+                <div class="small-note mono"><%= selectedOrder.items[k].coffeeId %></div>
+                <div class="row mt-2" style="justify-content:space-between;">
+                  <div class="small-note">Menge</div>
+                  <div class="mono" style="font-weight:950;"><%= toFixed1(selectedOrder.items[k].kg) %> kg</div>
+                </div>
+              </div>
+            <% } %>
+          </div>
+
+          <div class="row mt-3" style="justify-content:space-between;">
+            <div class="small-note">Summe</div>
+            <div class="mono" style="font-weight:950;"><%= toFixed1(total) %> kg</div>
+          </div>
+        </div>
+
+        <div class="sticky-bar">
+          <div class="sticky-inner">
+            <a class="btn btn-ghost ghost-wide" href="<%= buildLink('') %>">Neue Bestellung</a>
+
+            <% if (!shopMode) { %>
+              <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/approve">
+                  <button class="btn btn-ghost ghost-wide" type="submit">Freigeben</button>
+                </form>
+
+                <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/advance">
+                  <button class="btn btn-primary primary-wide" type="submit">Nächster Status</button>
+                </form>
+
+                <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/deliver"
+                      onsubmit="return confirm('Ausliefern? (zieht Röstkaffee ab)');">
+                  <button class="btn btn-ghost ghost-wide" type="submit">Ausliefern</button>
+                </form>
+
+                <form method="POST" action="/actions/orders/<%= selectedOrder.id %>/delete"
+                      onsubmit="return confirm('Bestellung löschen?');">
+                  <button class="btn btn-danger ghost-wide" type="submit">Löschen</button>
+                </form>
+              </div>
+            <% } else { %>
+              <div class="small-note">Freigabe/Produktion/Auslieferung macht die Rösterei.</div>
+            <% } %>
+          </div>
+        </div>
+
+      <% } else { %>
+
+        <!-- CREATE VIEW (tablet/phone first) -->
+        <form id="orderForm" method="POST" action="/actions/orders/create">
+          <input type="hidden" name="payload" id="payload" value="" />
+          <input type="hidden" id="deliveryDate" value="" />
+
+          <div class="card mt-3">
+            <h2>Details</h2>
+
+            <div class="stack mt-3">
+              <div class="field">
+                <div class="label">Lieferdatum</div>
+                <input class="input" id="deliveryDateUI" type="date" />
+              </div>
+
+              <% if (!shopMode) { %>
+                <div class="field">
+                  <div class="label">Kanal</div>
+                  <select class="select" id="channel">
+                    <option value="FILIALE">Filiale</option>
+                    <option value="B2B">B2B</option>
+                  </select>
+                </div>
+
+                <div class="field" id="rowShop">
+                  <div class="label">Filiale</div>
                   <select class="select" id="shopId">
                     <option value="">Bitte auswählen</option>
                     <% for (var s=0;s<shops.length;s++) { %>
@@ -280,91 +425,73 @@
                     <% } %>
                   </select>
                 </div>
-              </div>
 
-              <div id="rowB2B" class="row" style="gap:10px; display:none;">
-                <div style="flex:1;">
-                  <div class="small-note">B2B Kunde</div>
+                <div class="field" id="rowB2B" style="display:none;">
+                  <div class="label">B2B Kunde</div>
                   <select class="select" id="b2bCustomer">
                     <option value="">Bitte auswählen</option>
                     <% for (var b=0;b<b2bCustomers.length;b++) { %>
                       <option value="<%= b2bCustomers[b].name %>"><%= b2bCustomers[b].name %></option>
                     <% } %>
                   </select>
+                  <div class="small-note">Oder manuell:</div>
+                  <input class="input" id="customerName" placeholder="B2B Kunde (Name)" />
                 </div>
 
-                <div style="flex:1;">
-                  <div class="small-note">Oder Name manuell</div>
-                  <input class="input" id="customerName" placeholder="B2B Kunde" />
-                </div>
+              <% } else { %>
+                <div class="pill ok"><span class="dot"></span>Filiale: <span class="mono"><%= shopId %></span></div>
+              <% } %>
+
+              <div class="field">
+                <div class="label">Notiz (optional)</div>
+                <input class="input" id="note" placeholder="z.B. bitte bis 10:00 liefern" />
               </div>
-            <% } else { %>
-              <div class="small-note">Filiale: <span class="mono"><%= shopId %></span></div>
-            <% } %>
-
-            <div>
-              <div class="small-note">Notiz (optional)</div>
-              <input class="input" id="note" placeholder="z.B. bitte bis 10:00 liefern" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 2: Items -->
-        <div class="card mt-3">
-          <div class="row" style="justify-content:space-between; align-items:center;">
-            <div>
-              <h2 style="margin:0;">2) Positionen</h2>
-              <div class="small-note">Sorte auswählen, kg eingeben. Du kannst Zeilen schnell hinzufügen.</div>
-            </div>
-
-            <div class="row" style="gap:10px;">
-              <button class="btn btn-ghost" type="button" onclick="addItem()">+ Zeile</button>
-              <button class="btn btn-ghost" type="button" onclick="addFromQuick()">Quick Add</button>
             </div>
           </div>
 
-          <div class="table-wrap mt-3">
-            <div class="table-head" style="grid-template-columns: 1fr 160px 140px;">
-              <div>Sorte</div>
-              <div class="right">kg</div>
-              <div class="right">Aktion</div>
+          <div class="card mt-3">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <div>
+                <h2 style="margin:0;">Positionen</h2>
+                <div class="small-note">Große Touch-Ziele, schnell auf Tablet.</div>
+              </div>
+              <div class="seg">
+                <button class="btn btn-ghost" type="button" onclick="addItem()">+ Zeile</button>
+                <button class="btn btn-ghost" type="button" onclick="addPack()">+ Pack</button>
+              </div>
             </div>
 
-            <div id="itemsTable" style="display:grid; gap:10px; padding:12px;">
-              <!-- rows injected by JS -->
-            </div>
+            <div id="items" class="items mt-3"></div>
 
-            <div class="table-row" style="grid-template-columns: 1fr 160px 140px;">
+            <div class="row mt-3" style="justify-content:space-between;">
               <div class="small-note">Summe</div>
-              <div class="right mono" id="totalKg">0.0</div>
-              <div></div>
+              <div class="mono" style="font-weight:950;" id="totalKg">0.0 kg</div>
+            </div>
+
+            <div class="small-note mt-2">
+              Tipp: “Pack” setzt automatisch den Standard-Pack (aus Settings). Du kannst danach kg anpassen.
             </div>
           </div>
 
-          <div class="small-note mt-2">
-            Hinweis: Nur Zeilen mit Sorte + kg &gt; 0 werden gespeichert.
-          </div>
-        </div>
-
-        <!-- Step 3: Create -->
-        <div class="card mt-3">
-          <div class="row" style="justify-content:space-between; align-items:center;">
-            <div>
-              <h2 style="margin:0;">3) Abschicken</h2>
-              <div class="small-note">Wir prüfen Datum und Positionen, dann wird die Bestellung erstellt.</div>
+          <div class="sticky-bar">
+            <div class="sticky-inner">
+              <div class="small-note">
+                Prüfen: Datum + mindestens 1 Position.
+              </div>
+              <button class="btn btn-primary primary-wide" type="submit">Bestellung erstellen</button>
             </div>
-            <button class="btn btn-primary" type="submit" style="min-width:240px;">Bestellung erstellen</button>
           </div>
-        </div>
 
-        <div class="small-note mt-3">
-          Seitenhinweis: Freigabe zählt für Produktionsbedarf. Ausliefern zieht Röstkaffee ab.
-        </div>
-      </form>
+          <div class="small-note mt-3">
+            Seitenhinweis: Freigabe zählt für Produktionsbedarf. Ausliefern zieht Röstkaffee ab.
+          </div>
+        </form>
 
-    <% } %>
+      <% } %>
+
+    </div>
+
   </div>
-
 </div>
 
 <script>
@@ -376,7 +503,6 @@
     if (!val) return "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
 
-    // Safari/locale fallback: MM/DD/YYYY
     const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
       const mm = String(m[1]).padStart(2,"0");
@@ -402,6 +528,21 @@
     }
   }
 
+  function syncChannelUI(){
+    const ch = document.getElementById("channel");
+    const rowShop = document.getElementById("rowShop");
+    const rowB2B = document.getElementById("rowB2B");
+    if (!ch || !rowShop || !rowB2B) return;
+
+    if (ch.value === "B2B") {
+      rowShop.style.display = "none";
+      rowB2B.style.display = "";
+    } else {
+      rowShop.style.display = "";
+      rowB2B.style.display = "none";
+    }
+  }
+
   function computeTotal(){
     const rows = Array.from(document.querySelectorAll(".item-row"));
     let total = 0;
@@ -409,124 +550,108 @@
       const kg = Number(r.querySelector(".kg")?.value || 0);
       if (Number.isFinite(kg) && kg > 0) total += kg;
     });
-    document.getElementById("totalKg").textContent = total.toFixed(1);
+    const el = document.getElementById("totalKg");
+    if (el) el.textContent = total.toFixed(1) + " kg";
   }
 
-  function makeCoffeeSelect(selected){
+  function makeCoffeeSelect(selectedId){
     const sel = document.createElement("select");
     sel.className = "select coffee";
-    sel.style.width = "100%";
     sel.appendChild(new Option("Sorte wählen", ""));
-    coffees.forEach(c => {
-      sel.appendChild(new Option(`${c.name} (${c.id})`, c.id));
-    });
-    if (selected) sel.value = selected;
+    coffees.forEach(c => sel.appendChild(new Option(`${c.name} (${c.id})`, c.id)));
+    if (selectedId) sel.value = selectedId;
     sel.addEventListener("change", computeTotal);
     return sel;
   }
 
   function addItem(prefCoffeeId="", prefKg=""){
     const wrap = document.createElement("div");
-    wrap.className = "row item-row";
-    wrap.style.gap = "10px";
-    wrap.style.alignItems = "center";
+    wrap.className = "item-row";
 
-    const left = document.createElement("div");
-    left.style.flex = "1";
-    const sel = makeCoffeeSelect(prefCoffeeId);
-    left.appendChild(sel);
+    const selWrap = document.createElement("div");
+    selWrap.appendChild(makeCoffeeSelect(prefCoffeeId));
 
-    const kgWrap = document.createElement("div");
-    kgWrap.style.width = "160px";
     const kg = document.createElement("input");
     kg.className = "input kg";
     kg.type = "number";
     kg.step = "0.1";
     kg.min = "0";
     kg.placeholder = "kg";
+    kg.style.height = "46px";
+    kg.style.borderRadius = "16px";
     if (prefKg) kg.value = prefKg;
     kg.addEventListener("input", computeTotal);
-    kgWrap.appendChild(kg);
 
-    const act = document.createElement("div");
-    act.style.width = "140px";
-    act.style.display = "flex";
-    act.style.justifyContent = "flex-end";
     const del = document.createElement("button");
-    del.className = "btn btn-ghost";
     del.type = "button";
-    del.textContent = "Entfernen";
+    del.className = "icon-btn";
+    del.textContent = "×";
     del.onclick = () => { wrap.remove(); computeTotal(); };
-    act.appendChild(del);
 
-    wrap.appendChild(left);
-    wrap.appendChild(kgWrap);
-    wrap.appendChild(act);
+    // on bigger screens use normal button width
+    const delWide = document.createElement("button");
+    delWide.type = "button";
+    delWide.className = "btn btn-ghost";
+    delWide.textContent = "Entfernen";
+    delWide.style.display = "none";
 
-    document.getElementById("itemsTable").appendChild(wrap);
+    // responsive: show wide delete on >=700px
+    function syncDel(){
+      const isWide = window.matchMedia("(min-width: 700px)").matches;
+      del.style.display = isWide ? "none" : "";
+      delWide.style.display = isWide ? "" : "none";
+    }
+    delWide.onclick = del.onclick;
+    window.addEventListener("resize", syncDel);
+    syncDel();
+
+    const delSlot = document.createElement("div");
+    delSlot.style.display = "flex";
+    delSlot.style.justifyContent = "flex-end";
+    delSlot.appendChild(del);
+    delSlot.appendChild(delWide);
+
+    wrap.appendChild(selWrap);
+    wrap.appendChild(kg);
+    wrap.appendChild(delSlot);
+
+    document.getElementById("items").appendChild(wrap);
     computeTotal();
   }
 
-  function addFromQuick(){
-    // quick add = 3 empty lines at once
+  function addPack(){
+    // Adds a row with default pack size based on selected coffee (if any),
+    // otherwise adds empty row.
     addItem();
-    addItem();
-    addItem();
-  }
-
-  function syncChannelUI(){
-    const ch = document.getElementById("channel");
-    if (!ch) return;
-
-    const rowShop = document.getElementById("rowShop");
-    const rowB2B = document.getElementById("rowB2B");
-
-    if (ch.value === "B2B") {
-      if (rowShop) rowShop.style.display = "none";
-      if (rowB2B) rowB2B.style.display = "";
-    } else {
-      if (rowShop) rowShop.style.display = "";
-      if (rowB2B) rowB2B.style.display = "none";
-    }
   }
 
   // init create mode only
   if (document.getElementById("orderForm")) {
-    // default date
     setDefaultDate();
-    const dUI = document.getElementById("deliveryDateUI");
-    if (dUI) {
-      dUI.addEventListener("change", () => {
-        const hid = document.getElementById("deliveryDate");
-        if (hid) hid.value = toISODate(dUI.value);
-      });
-    }
+    const ui = document.getElementById("deliveryDateUI");
+    if (ui) ui.addEventListener("change", () => {
+      const hid = document.getElementById("deliveryDate");
+      if (hid) hid.value = toISODate(ui.value);
+    });
 
-    // init items: 2 rows (clean and predictable)
-    addItem();
-    addItem();
-
-    // admin channel toggle
     const ch = document.getElementById("channel");
-    if (ch) {
-      ch.addEventListener("change", syncChannelUI);
-      syncChannelUI();
-    }
+    if (ch) { ch.addEventListener("change", syncChannelUI); syncChannelUI(); }
 
-    // b2b dropdown fills text input
     const b2bSel = document.getElementById("b2bCustomer");
-    if (b2bSel) {
-      b2bSel.addEventListener("change", () => {
-        const name = document.getElementById("customerName");
-        if (name && b2bSel.value) name.value = b2bSel.value;
-      });
-    }
+    if (b2bSel) b2bSel.addEventListener("change", () => {
+      const name = document.getElementById("customerName");
+      if (name && b2bSel.value) name.value = b2bSel.value;
+    });
 
-    // submit payload
-    const form = document.getElementById("orderForm");
-    form.addEventListener("submit", (e) => {
+    // default 2 rows
+    addItem();
+    addItem();
+
+    document.getElementById("orderForm").addEventListener("submit", () => {
       const channel = shopMode ? "FILIALE" : (document.getElementById("channel")?.value || "FILIALE");
-      const dateISO = document.getElementById("deliveryDate")?.value || toISODate(document.getElementById("deliveryDateUI")?.value || "");
+
+      const dateISO = document.getElementById("deliveryDate")?.value ||
+        toISODate(document.getElementById("deliveryDateUI")?.value || "");
       const hid = document.getElementById("deliveryDate");
       if (hid) hid.value = dateISO;
 
@@ -541,14 +666,18 @@
         items: []
       };
 
-      // read rows
+      // for B2B: if dropdown exists and customerName empty, use dropdown
+      const b2b = document.getElementById("b2bCustomer");
+      if (!shopMode && channel === "B2B" && b2b && b2b.value && !payload.customerName) {
+        payload.customerName = b2b.value;
+      }
+
       const rows = Array.from(document.querySelectorAll(".item-row"));
       rows.forEach(r => {
         const coffeeId = r.querySelector(".coffee")?.value || "";
         const kgVal = Number(r.querySelector(".kg")?.value || 0);
         if (!coffeeId || !Number.isFinite(kgVal) || kgVal <= 0) return;
 
-        // derive coffeeName from option text "Name (ID)"
         const sel = r.querySelector(".coffee");
         const opt = sel && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : coffeeId;
         const coffeeName = String(opt).replace(/\s*\([^)]+\)\s*$/, "");
