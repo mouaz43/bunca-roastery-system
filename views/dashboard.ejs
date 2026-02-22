@@ -1,31 +1,142 @@
+<%
+  var ordersCount = (typeof ordersCount !== "undefined") ? ordersCount : 0;
+  var demandCount = (typeof demandCount !== "undefined") ? demandCount : 0;
+  var batchCount = (typeof batchCount !== "undefined") ? batchCount : 0;
+  var activityCount = (typeof activityCount !== "undefined") ? activityCount : 0;
+  var inventoryUpdatedAt = (typeof inventoryUpdatedAt !== "undefined") ? inventoryUpdatedAt : null;
+
+  function fmt(at){
+    if (!at) return "-";
+    return String(at).slice(0,19).replace("T"," ");
+  }
+%>
+
 <div class="card-grid">
   <div class="card">
-    <h2>Heute</h2>
-    <p>Platzhalter: Fällige Lieferungen, kritische Bestände, wichtige Hinweise.</p>
+    <h2>Heute im Blick</h2>
+    <p>Dashboard ist dein Kontrollzentrum: schnelle Übersicht, klare Aktionen, weniger Hin und Her zwischen Seiten.</p>
   </div>
 
   <div class="card">
-    <h2>Schnellaktionen</h2>
-    <p>Öffnen Sie direkt den wichtigsten Bereich für die aktuelle Arbeit.</p>
-    <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-      <a class="btn btn-primary" href="/orders">Bestellungen</a>
-      <a class="btn btn-secondary" href="/production">Produktion</a>
-      <a class="btn btn-secondary" href="/inventory">Lager</a>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Produktion</h2>
-    <p>Platzhalter: Bedarf pro Sorte und Kapazität. Später automatisch aus Bestellungen berechnet.</p>
-  </div>
-
-  <div class="card">
-    <h2>Lagerstatus</h2>
-    <p>Platzhalter: Warnstufen für Rohkaffee, Röstkaffee und Verpackung.</p>
+    <h2>Status</h2>
+    <p>
+      Letztes Lager-Update: <span class="mono"><%= fmt(inventoryUpdatedAt) %></span><br/>
+      Aktivität (Log): <strong><%= activityCount %></strong> Einträge
+    </p>
   </div>
 </div>
 
-<div style="margin-top:14px;" class="card card-wide">
-  <h2>Arbeitslogik</h2>
-  <p>Starten Sie immer bei Bestellungen. Freigaben erzeugen Produktionsbedarf. Produktion reduziert Rohkaffee und erhöht Röstkaffee. Auslieferung reduziert Röstkaffee.</p>
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">KPIs</div>
+      <div class="section-sub">Schnelle Zahlen. Ziel: sofort wissen, wo der Fokus liegt.</div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn btn-sm btn-ghost" href="/activity">Audit Log</a>
+  </div>
+
+  <div class="section-body">
+    <div class="card-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+      <div class="card">
+        <h2>Bestellungen</h2>
+        <p><strong class="mono" style="font-size:22px;"><%= ordersCount %></strong><br/><span class="small-note">gesamt (Filter/Details in Bestellungen)</span></p>
+        <div class="row mt-3">
+          <a class="btn btn-sm btn-primary" href="/orders"><span class="btn-icon"></span>Öffnen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bedarf</h2>
+        <p><strong class="mono" style="font-size:22px;"><%= demandCount %></strong><br/><span class="small-note">Sondern (aus Freigaben)</span></p>
+        <div class="row mt-3">
+          <a class="btn btn-sm btn-primary" href="/production"><span class="btn-icon"></span>Planen</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Chargen</h2>
+        <p><strong class="mono" style="font-size:22px;"><%= batchCount %></strong><br/><span class="small-note">im System (geplant bis ausgeliefert)</span></p>
+        <div class="row mt-3">
+          <a class="btn btn-sm btn-primary" href="/production"><span class="btn-icon"></span>Tracken</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Lager</h2>
+        <p><strong class="mono" style="font-size:22px;">OK</strong><br/><span class="small-note">Details im Lagerbereich</span></p>
+        <div class="row mt-3">
+          <a class="btn btn-sm btn-primary" href="/inventory"><span class="btn-icon"></span>Prüfen</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Quick Actions</div>
+      <div class="section-sub">Die 3 wichtigsten Aktionen für den Alltag (Tablet friendly).</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-sm btn-ghost" type="button" data-to-top>Nach oben</button>
+  </div>
+
+  <div class="section-body">
+    <div class="card-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+      <div class="card">
+        <h2>Neue Bestellung</h2>
+        <p>Schnell erfassen. Danach freigeben, damit Produktion den Bedarf sieht.</p>
+        <div class="row mt-3">
+          <a class="btn btn-primary" href="/orders#new"><span class="btn-icon"></span>Start</a>
+          <a class="btn btn-ghost" href="/orders">Liste</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bestand ändern</h2>
+        <p>Roh oder Röst korrigieren. Jede Änderung landet automatisch im Audit Log.</p>
+        <div class="row mt-3">
+          <a class="btn btn-primary" href="/inventory#apply"><span class="btn-icon"></span>Ändern</a>
+          <a class="btn btn-ghost" href="/activity">Log</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Charge anlegen</h2>
+        <p>Aus Bedarf eine Charge planen. Status weiter bewegt automatisch den Bestand.</p>
+        <div class="row mt-3">
+          <a class="btn btn-primary" href="/production"><span class="btn-icon"></span>Produktion</a>
+          <a class="btn btn-ghost" href="/orders">Freigaben</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Operativer Ablauf</div>
+      <div class="section-sub">Einfacher Standard: so arbeitet das Team konsistent.</div>
+    </div>
+  </div>
+
+  <div class="section-body">
+    <div class="card">
+      <h2>Standard Workflow</h2>
+      <p>
+        1) Bestellungen erfassen → <strong>Freigeben</strong><br/>
+        2) Produktion: Bedarf prüfen → <strong>Charge anlegen</strong><br/>
+        3) Charge Status weiterführen → bei <strong>Geröstet</strong> wird Roh→Röst gebucht<br/>
+        4) Auslieferung buchen → Röstkaffee wird reduziert, Audit Log aktualisiert
+      </p>
+      <div class="row mt-3">
+        <a class="btn btn-sm btn-primary" href="/orders"><span class="btn-icon"></span>Bestellungen</a>
+        <a class="btn btn-sm btn-primary" href="/production"><span class="btn-icon"></span>Produktion</a>
+        <a class="btn btn-sm btn-primary" href="/inventory"><span class="btn-icon"></span>Lager</a>
+      </div>
+    </div>
+  </div>
 </div>
