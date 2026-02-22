@@ -2,17 +2,43 @@
   var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
   var shops = (typeof shops !== "undefined" && shops) ? shops : [];
 
-  var userError = (typeof query !== "undefined" && query && query.user_error) ? query.user_error : null;
-  var userOk = (typeof query !== "undefined" && query && query.user_ok) ? query.user_ok : null;
+  var queryObj = (typeof query !== "undefined" && query) ? query : {};
+  var tab = queryObj.tab || "coffee";
+  if (tab !== "coffee" && tab !== "shop" && tab !== "users") tab = "coffee";
 
-  var masterError = (typeof query !== "undefined" && query && query.master_error) ? query.master_error : null;
-  var masterOk = (typeof query !== "undefined" && query && query.master_ok) ? query.master_ok : null;
+  var userError = queryObj.user_error || null;
+  var userOk = queryObj.user_ok || null;
+
+  var masterError = queryObj.master_error || null;
+  var masterOk = queryObj.master_ok || null;
+
+  var coffeeSel = queryObj.coffee || "";
+  var shopSel = queryObj.shop || "";
+
+  function findCoffee(id){
+    for (var i=0;i<coffees.length;i++) if (String(coffees[i].id)===String(id)) return coffees[i];
+    return null;
+  }
+  function findShop(id){
+    for (var i=0;i<shops.length;i++) if (String(shops[i].id)===String(id)) return shops[i];
+    return null;
+  }
+
+  var selectedCoffee = coffeeSel ? findCoffee(coffeeSel) : null;
+  var selectedShop = shopSel ? findShop(shopSel) : null;
+
+  function tabLink(t, extra){
+    var p = [];
+    p.push("tab=" + encodeURIComponent(t));
+    if (extra && extra.length) p.push(extra.join("&"));
+    return "/settings?" + p.join("&");
+  }
 %>
 
 <div class="card-grid">
   <div class="card">
     <h2>Einstellungen</h2>
-    <p>Benutzerverwaltung und Stammdaten. Änderungen werden direkt in der Datenbank gespeichert.</p>
+    <p>Stammdaten und Benutzerverwaltung. Änderungen werden direkt gespeichert und sind sofort im System aktiv.</p>
   </div>
 
   <div class="card">
@@ -52,170 +78,272 @@
   </div>
 <% } %>
 
-<!-- USERS -->
 <div class="section">
   <div class="section-head">
     <div>
-      <div class="section-title">Benutzer erstellen</div>
-      <div class="section-sub">Filiale: nur Bestellungen + Status. Admin: alles.</div>
+      <div class="section-title">Admin Center</div>
+      <div class="section-sub">Benutzer verwalten und Stammdaten sauber pflegen (tablet-friendly).</div>
     </div>
   </div>
 
   <div class="section-body">
-    <form method="POST" action="/actions/users/create">
-      <div class="filterbar">
-        <div class="filter-left">
-          <input class="input" name="name" placeholder="Name (z.B. City)" style="min-width:200px;" />
-          <input class="input" name="email" placeholder="E-Mail" style="min-width:260px;" />
+    <div class="filterbar">
+      <div class="filter-left" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn btn-sm <%= tab==='users'?'btn-primary':'btn-ghost' %>" href="<%= tabLink('users') %>">Benutzer</a>
+        <a class="btn btn-sm <%= tab==='coffee'?'btn-primary':'btn-ghost' %>" href="<%= tabLink('coffee') %>">Kaffeesorten</a>
+        <a class="btn btn-sm <%= tab==='shop'?'btn-primary':'btn-ghost' %>" href="<%= tabLink('shop') %>">Filialen</a>
+      </div>
+      <div class="filter-right">
+        <span class="badge info"><span class="dot"></span>Nur Admin</span>
+      </div>
+    </div>
 
-          <select class="select" name="role">
-            <option value="SHOP">Rolle: Filiale</option>
-            <option value="ADMIN">Rolle: Admin</option>
-          </select>
+    <% if (tab === 'users') { %>
+      <!-- USERS -->
+      <div class="card mt-3">
+        <h2>Benutzer erstellen</h2>
+        <p class="small-note">Filiale = Bestellen + Status prüfen. Admin = alles.</p>
 
-          <select class="select" name="shopId" style="min-width:220px;">
-            <option value="">Filiale wählen (nur bei Filiale)</option>
-            <% for (var i=0;i<shops.length;i++) { %>
-              <option value="<%= shops[i].id %>"><%= shops[i].name %></option>
+        <form method="POST" action="/actions/users/create" class="mt-3">
+          <div class="filterbar">
+            <div class="filter-left">
+              <input class="input" name="name" placeholder="Name (z.B. City)" style="min-width:200px;" />
+              <input class="input" name="email" placeholder="E-Mail" style="min-width:260px;" />
+
+              <select class="select" name="role">
+                <option value="SHOP">Rolle: Filiale</option>
+                <option value="ADMIN">Rolle: Admin</option>
+              </select>
+
+              <select class="select" name="shopId" style="min-width:240px;">
+                <option value="">Filiale wählen (nur bei Filiale)</option>
+                <% for (var i=0;i<shops.length;i++) { %>
+                  <option value="<%= shops[i].id %>"><%= shops[i].name %></option>
+                <% } %>
+              </select>
+
+              <input class="input" name="password" placeholder="Passwort" style="min-width:200px;" />
+            </div>
+
+            <div class="filter-right">
+              <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Benutzer erstellen</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="small-note mt-3">
+          Nächster Schritt: Benutzerliste + Passwort-Reset direkt hier in dieser Seite.
+        </div>
+      </div>
+
+    <% } else if (tab === 'coffee') { %>
+
+      <!-- COFFEE TWO-PANEL -->
+      <div class="card-grid mt-3" style="grid-template-columns: 380px 1fr; align-items:start;">
+        <div class="card">
+          <h2>Kaffeesorten</h2>
+          <p class="small-note">Links auswählen, rechts bearbeiten. ID bleibt stabil.</p>
+
+          <div class="filterbar mt-3">
+            <div class="filter-left">
+              <input class="input" placeholder="Suche (ID oder Name)" oninput="filterList('coffeeList', this.value)" style="min-width:260px;" />
+            </div>
+            <div class="filter-right">
+              <a class="btn btn-sm btn-primary" href="<%= tabLink('coffee', []) %>#newCoffee"><span class="btn-icon"></span>Neu</a>
+            </div>
+          </div>
+
+          <div id="coffeeList" class="mt-3" style="display:grid; gap:8px;">
+            <% for (var c=0;c<coffees.length;c++) { %>
+              <a
+                class="nav-item <%= (selectedCoffee && selectedCoffee.id===coffees[c].id) ? 'active' : '' %>"
+                href="<%= tabLink('coffee', ['coffee='+encodeURIComponent(coffees[c].id)]) %>"
+                data-text="<%= (coffees[c].id + ' ' + coffees[c].name).toLowerCase() %>"
+                style="text-decoration:none;"
+              >
+                <div style="display:flex; flex-direction:column;">
+                  <div style="font-weight:950;"><%= coffees[c].name %></div>
+                  <div class="small-note mono"><%= coffees[c].id %> · Pack <%= coffees[c].packDefaultKg %>kg</div>
+                </div>
+              </a>
             <% } %>
-          </select>
-
-          <input class="input" name="password" placeholder="Passwort" style="min-width:200px;" />
-        </div>
-
-        <div class="filter-right">
-          <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Benutzer erstellen</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- MASTER DATA -->
-<div class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Stammdaten</div>
-      <div class="section-sub">Kaffeesorten und Filialen. Änderungen wirken sofort in Bestellungen/Produktion/Lager.</div>
-    </div>
-  </div>
-
-  <div class="section-body">
-    <div class="card-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-
-      <!-- COFFEES -->
-      <div class="card">
-        <h2>Kaffeesorten</h2>
-        <p class="small-note">ID ist technisch (stabil). Name kann jederzeit geändert werden.</p>
-
-        <form method="POST" action="/actions/masters/coffee/create" class="mt-3">
-          <div class="filterbar">
-            <div class="filter-left">
-              <input class="input" name="id" placeholder="ID (z.B. ESPRESSO)" style="min-width:170px;" />
-              <input class="input" name="name" placeholder="Name (z.B. Espresso Blend)" style="min-width:220px;" />
-              <input class="input" name="packDefaultKg" placeholder="Pack kg (z.B. 1)" style="min-width:140px;" />
-            </div>
-            <div class="filter-right">
-              <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Hinzufügen</button>
-            </div>
-          </div>
-        </form>
-
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 170px 1fr 110px 190px;">
-            <div>ID</div>
-            <div>Name</div>
-            <div class="right">Pack</div>
-            <div class="right">Aktionen</div>
-          </div>
-
-          <% if (!coffees.length) { %>
-            <div class="table-row" style="grid-template-columns: 1fr;">
+            <% if (!coffees.length) { %>
               <div class="small-note">Keine Sorten vorhanden.</div>
-            </div>
-          <% } %>
+            <% } %>
+          </div>
+        </div>
 
-          <% for (var c=0; c<coffees.length; c++) { %>
-            <div class="table-row" style="grid-template-columns: 170px 1fr 110px 190px;">
-              <div class="mono"><%= coffees[c].id %></div>
+        <div class="card">
+          <h2>Editor</h2>
+          <p class="small-note">Änderungen speichern oder neue Sorte anlegen.</p>
 
-              <form method="POST" action="/actions/masters/coffee/update" style="display:contents;">
-                <input type="hidden" name="id" value="<%= coffees[c].id %>" />
-                <div><input class="input" name="name" value="<%= coffees[c].name %>" style="height:40px;" /></div>
-                <div class="right"><input class="input" name="packDefaultKg" value="<%= coffees[c].packDefaultKg %>" style="height:40px; width:90px; text-align:right;" /></div>
-                <div class="row-actions" style="justify-content:flex-end;">
-                  <button class="btn btn-sm btn-primary" type="submit"><span class="btn-icon"></span>Speichern</button>
+          <div id="newCoffee" class="mt-3">
+            <h3 style="margin:0 0 10px 0;">Neue Sorte</h3>
+            <form method="POST" action="/actions/masters/coffee/create">
+              <div class="filterbar">
+                <div class="filter-left">
+                  <input class="input" name="id" placeholder="ID (z.B. ESPRESSO)" style="min-width:180px;" />
+                  <input class="input" name="name" placeholder="Name (z.B. Espresso Blend)" style="min-width:260px;" />
+                  <input class="input" name="packDefaultKg" placeholder="Pack kg (z.B. 1)" style="min-width:150px;" />
+                </div>
+                <div class="filter-right">
+                  <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Anlegen</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
+            <h3 style="margin:0 0 10px 0;">Sorte bearbeiten</h3>
+
+            <% if (!selectedCoffee) { %>
+              <div class="card">
+                <h2>Keine Auswahl</h2>
+                <p>Wählen Sie links eine Sorte aus, um sie zu bearbeiten.</p>
+              </div>
+            <% } else { %>
+              <form method="POST" action="/actions/masters/coffee/update">
+                <input type="hidden" name="id" value="<%= selectedCoffee.id %>" />
+
+                <div class="card" style="margin:0;">
+                  <div class="small-note">ID (nicht änderbar)</div>
+                  <div class="mono" style="font-weight:950;"><%= selectedCoffee.id %></div>
+
+                  <div class="mt-3 small-note">Name</div>
+                  <input class="input" name="name" value="<%= selectedCoffee.name %>" />
+
+                  <div class="mt-3 small-note">Pack Standard (kg)</div>
+                  <input class="input" name="packDefaultKg" value="<%= selectedCoffee.packDefaultKg %>" />
+
+                  <div class="row mt-3">
+                    <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Speichern</button>
+                    <a class="btn btn-ghost" href="<%= tabLink('coffee', []) %>">Abbrechen</a>
+                  </div>
                 </div>
               </form>
 
-              <div class="row-actions" style="justify-content:flex-end;">
+              <div class="card mt-3" style="border-color: rgba(255,77,77,.25);">
+                <h2>Danger Zone</h2>
+                <p class="small-note">Löschen nur möglich, wenn die Sorte nicht in Bestellungen/Chargen verwendet wurde.</p>
                 <form method="POST" action="/actions/masters/coffee/delete" onsubmit="return confirm('Sorte wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= coffees[c].id %>" />
-                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                  <input type="hidden" name="id" value="<%= selectedCoffee.id %>" />
+                  <button class="btn btn-danger" type="submit">Sorte löschen</button>
                 </form>
               </div>
-            </div>
-          <% } %>
+            <% } %>
+          </div>
         </div>
-
-        <div class="small-note mt-3">Löschen nur möglich, wenn die Sorte nicht in Bestellungen/Chargen verwendet wurde.</div>
       </div>
 
-      <!-- SHOPS -->
-      <div class="card">
-        <h2>Filialen</h2>
-        <p class="small-note">ID ist technisch (stabil). Name kann jederzeit geändert werden.</p>
+    <% } else { %>
 
-        <form method="POST" action="/actions/masters/shop/create" class="mt-3">
-          <div class="filterbar">
+      <!-- SHOP TWO-PANEL -->
+      <div class="card-grid mt-3" style="grid-template-columns: 380px 1fr; align-items:start;">
+        <div class="card">
+          <h2>Filialen</h2>
+          <p class="small-note">Links auswählen, rechts bearbeiten.</p>
+
+          <div class="filterbar mt-3">
             <div class="filter-left">
-              <input class="input" name="id" placeholder="ID (z.B. CITY)" style="min-width:170px;" />
-              <input class="input" name="name" placeholder="Name (z.B. Bunca City)" style="min-width:260px;" />
+              <input class="input" placeholder="Suche (ID oder Name)" oninput="filterList('shopList', this.value)" style="min-width:260px;" />
             </div>
             <div class="filter-right">
-              <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Hinzufügen</button>
+              <a class="btn btn-sm btn-primary" href="<%= tabLink('shop', []) %>#newShop"><span class="btn-icon"></span>Neu</a>
             </div>
           </div>
-        </form>
 
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 170px 1fr 190px;">
-            <div>ID</div>
-            <div>Name</div>
-            <div class="right">Aktionen</div>
-          </div>
-
-          <% if (!shops.length) { %>
-            <div class="table-row" style="grid-template-columns: 1fr;">
+          <div id="shopList" class="mt-3" style="display:grid; gap:8px;">
+            <% for (var s=0;s<shops.length;s++) { %>
+              <a
+                class="nav-item <%= (selectedShop && selectedShop.id===shops[s].id) ? 'active' : '' %>"
+                href="<%= tabLink('shop', ['shop='+encodeURIComponent(shops[s].id)]) %>"
+                data-text="<%= (shops[s].id + ' ' + shops[s].name).toLowerCase() %>"
+                style="text-decoration:none;"
+              >
+                <div style="display:flex; flex-direction:column;">
+                  <div style="font-weight:950;"><%= shops[s].name %></div>
+                  <div class="small-note mono"><%= shops[s].id %></div>
+                </div>
+              </a>
+            <% } %>
+            <% if (!shops.length) { %>
               <div class="small-note">Keine Filialen vorhanden.</div>
-            </div>
-          <% } %>
+            <% } %>
+          </div>
+        </div>
 
-          <% for (var s=0; s<shops.length; s++) { %>
-            <div class="table-row" style="grid-template-columns: 170px 1fr 190px;">
-              <div class="mono"><%= shops[s].id %></div>
+        <div class="card">
+          <h2>Editor</h2>
+          <p class="small-note">Neue Filiale anlegen oder bestehende bearbeiten.</p>
 
-              <form method="POST" action="/actions/masters/shop/update" style="display:contents;">
-                <input type="hidden" name="id" value="<%= shops[s].id %>" />
-                <div><input class="input" name="name" value="<%= shops[s].name %>" style="height:40px;" /></div>
-                <div class="row-actions" style="justify-content:flex-end;">
-                  <button class="btn btn-sm btn-primary" type="submit"><span class="btn-icon"></span>Speichern</button>
+          <div id="newShop" class="mt-3">
+            <h3 style="margin:0 0 10px 0;">Neue Filiale</h3>
+            <form method="POST" action="/actions/masters/shop/create">
+              <div class="filterbar">
+                <div class="filter-left">
+                  <input class="input" name="id" placeholder="ID (z.B. CITY)" style="min-width:180px;" />
+                  <input class="input" name="name" placeholder="Name (z.B. Bunca City)" style="min-width:300px;" />
+                </div>
+                <div class="filter-right">
+                  <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Anlegen</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
+            <h3 style="margin:0 0 10px 0;">Filiale bearbeiten</h3>
+
+            <% if (!selectedShop) { %>
+              <div class="card">
+                <h2>Keine Auswahl</h2>
+                <p>Wählen Sie links eine Filiale aus, um sie zu bearbeiten.</p>
+              </div>
+            <% } else { %>
+              <form method="POST" action="/actions/masters/shop/update">
+                <input type="hidden" name="id" value="<%= selectedShop.id %>" />
+
+                <div class="card" style="margin:0;">
+                  <div class="small-note">ID (nicht änderbar)</div>
+                  <div class="mono" style="font-weight:950;"><%= selectedShop.id %></div>
+
+                  <div class="mt-3 small-note">Name</div>
+                  <input class="input" name="name" value="<%= selectedShop.name %>" />
+
+                  <div class="row mt-3">
+                    <button class="btn btn-primary" type="submit"><span class="btn-icon"></span>Speichern</button>
+                    <a class="btn btn-ghost" href="<%= tabLink('shop', []) %>">Abbrechen</a>
+                  </div>
                 </div>
               </form>
 
-              <div class="row-actions" style="justify-content:flex-end;">
+              <div class="card mt-3" style="border-color: rgba(255,77,77,.25);">
+                <h2>Danger Zone</h2>
+                <p class="small-note">Löschen nur möglich, wenn keine Bestellungen oder Benutzer an die Filiale gebunden sind.</p>
                 <form method="POST" action="/actions/masters/shop/delete" onsubmit="return confirm('Filiale wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= shops[s].id %>" />
-                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                  <input type="hidden" name="id" value="<%= selectedShop.id %>" />
+                  <button class="btn btn-danger" type="submit">Filiale löschen</button>
                 </form>
               </div>
-            </div>
-          <% } %>
+            <% } %>
+          </div>
         </div>
-
-        <div class="small-note mt-3">Löschen nur möglich, wenn keine Bestellungen oder Benutzer an die Filiale gebunden sind.</div>
       </div>
 
-    </div>
+    <% } %>
+
   </div>
 </div>
+
+<script>
+  function filterList(listId, q){
+    q = (q || "").toLowerCase().trim();
+    var el = document.getElementById(listId);
+    if(!el) return;
+    var kids = el.querySelectorAll("[data-text]");
+    kids.forEach(function(node){
+      var t = (node.getAttribute("data-text") || "");
+      node.style.display = (!q || t.indexOf(q) >= 0) ? "" : "none";
+    });
+  }
+</script>
