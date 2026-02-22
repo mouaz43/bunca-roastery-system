@@ -29,6 +29,7 @@ function countByStatus(orders) {
   const statuses = ["EINGEGANGEN", "FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT", "AUSGELIEFERT"];
   const counts = {};
   for (const s of statuses) counts[s] = 0;
+
   for (const o of orders || []) {
     const st = String(o.status || "");
     if (counts[st] !== undefined) counts[st] += 1;
@@ -45,7 +46,6 @@ function nextDeliveryDate(orders) {
 
 function sortOrdersSmart(list) {
   const rank = (st) => {
-    // smaller = more urgent / earlier in list
     if (st === "EINGEGANGEN") return 1;
     if (st === "FREIGEGEBEN") return 2;
     if (st === "IN_PRODUKTION") return 3;
@@ -69,6 +69,9 @@ function sortOrdersSmart(list) {
   });
 }
 
+/* =========================
+   DASHBOARD
+========================= */
 exports.renderDashboard = async (req, res) => {
   const shopMode = isShop(req);
   const shopId = getShopId(req);
@@ -129,20 +132,15 @@ exports.renderDashboard = async (req, res) => {
   );
 };
 
-exports.renderSettings = async (req, res) => {
-  res.render("settings", Object.assign(base("settings", "Einstellungen", "Stammdaten und Regeln"), {
-    coffees: store.COFFEES,
-    shops: store.SHOPS,
-    query: req.query,
-    hintTitle: "Seitenhinweis",
-    hintLines: [
-      "Admin erstellt hier Filial-Accounts.",
-      "Als nächstes: Benutzerliste + Passwort Reset."
-    ],
-    hintMeta: { left: "Admin", right: "Benutzerverwaltung" }
-  }));
-};
-  // defaults already ok
+/* =========================
+   ORDERS
+========================= */
+exports.renderOrders = async (req, res) => {
+  const shopMode = isShop(req);
+  const shopId = getShopId(req);
+
+  const all = await store.listOrders();
+
   const search = q(req, "q", "");
   const status = q(req, "status", "ALL");
   const channel = q(req, "channel", "ALL");
@@ -154,12 +152,10 @@ exports.renderSettings = async (req, res) => {
 
   let orders = all;
 
-  // Hard filter for Shop role
   if (shopMode) {
     orders = orders.filter(o => o.channel === "FILIALE" && String(o.shopId || "") === String(shopId || ""));
   }
 
-  // Apply UI filters
   orders = orders.filter(o => {
     if (since && new Date(o.createdAt).getTime() < since) return false;
     if (status !== "ALL" && o.status !== status) return false;
@@ -178,7 +174,6 @@ exports.renderSettings = async (req, res) => {
     return true;
   });
 
-  // NEW: smart sorting
   orders = sortOrdersSmart(orders);
 
   res.render(
@@ -210,6 +205,9 @@ exports.renderSettings = async (req, res) => {
   );
 };
 
+/* =========================
+   PRODUCTION (ADMIN)
+========================= */
 exports.renderProduction = async (req, res) => {
   const inv = await store.getInventory();
   const roastDemand = await store.computeRoastDemand();
@@ -228,27 +226,27 @@ exports.renderProduction = async (req, res) => {
   }));
 };
 
+/* =========================
+   INVENTORY (ADMIN only via routes)
+========================= */
 exports.renderInventory = async (req, res) => {
   const inv = await store.getInventory();
-  const shopMode = isShop(req);
 
-  res.render("inventory", Object.assign(base("inventory", "Lager", shopMode ? "Ansicht (nur Lesen)" : "Bestände verwalten und Engpässe vermeiden"), {
+  res.render("inventory", Object.assign(base("inventory", "Lager", "Bestände verwalten und Engpässe vermeiden"), {
     inventory: inv,
     coffees: store.COFFEES,
     hintTitle: "Seitenhinweis",
-    hintLines: shopMode
-      ? [
-          "Filialen können Lager nur ansehen.",
-          "Bestandsänderungen macht die Rösterei (Admin)."
-        ]
-      : [
-          "Rohkaffee = grün. Röstkaffee = fertig.",
-          "Jede Änderung wird in Aktivität protokolliert."
-        ],
-    hintMeta: { left: shopMode ? "Rolle: Filiale" : "Rolle: Admin", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
+    hintLines: [
+      "Rohkaffee = grün. Röstkaffee = fertig.",
+      "Jede Änderung wird in Aktivität protokolliert."
+    ],
+    hintMeta: { left: "Admin", right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ") }
   }));
 };
 
+/* =========================
+   ANALYTICS (ADMIN)
+========================= */
 exports.renderAnalytics = async (req, res) => {
   res.render("analytics", Object.assign(base("analytics", "Analysen", "KPIs und Berichte"), {
     hintTitle: "Seitenhinweis",
@@ -260,19 +258,26 @@ exports.renderAnalytics = async (req, res) => {
   }));
 };
 
+/* =========================
+   SETTINGS (ADMIN)
+========================= */
 exports.renderSettings = async (req, res) => {
   res.render("settings", Object.assign(base("settings", "Einstellungen", "Stammdaten und Regeln"), {
     coffees: store.COFFEES,
     shops: store.SHOPS,
+    query: req.query,
     hintTitle: "Seitenhinweis",
     hintLines: [
-      "Hier werden Sorten, Filialen und Regeln verwaltet.",
-      "Als nächstes: Benutzerverwaltung und Mindestbestände."
+      "Admin erstellt hier Filial-Accounts.",
+      "Als nächstes: Benutzerliste + Passwort Reset."
     ],
-    hintMeta: { left: "Admin", right: "Stammdaten" }
+    hintMeta: { left: "Admin", right: "Benutzerverwaltung" }
   }));
 };
 
+/* =========================
+   ACTIVITY (ADMIN)
+========================= */
 exports.renderActivity = async (req, res) => {
   const all = await store.listActivity();
 
