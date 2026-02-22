@@ -26,18 +26,16 @@ router.post("/batches/:id/delete", requireAuth, requireRole("ADMIN"), wrap(actio
 
 // Users (Admin only)
 router.post("/users/create", requireAuth, requireRole("ADMIN"), wrap(adminController.createUser));
+router.post("/users/delete", requireAuth, requireRole("ADMIN"), wrap(adminController.deleteUser));
+router.post("/users/reset-password", requireAuth, requireRole("ADMIN"), wrap(adminController.resetPassword));
 
 // Master data (Admin only)
 router.post("/masters/coffee/create", requireAuth, requireRole("ADMIN"), wrap(masterController.createCoffee));
 router.post("/masters/coffee/update", requireAuth, requireRole("ADMIN"), wrap(masterController.updateCoffee));
 router.post("/masters/coffee/delete", requireAuth, requireRole("ADMIN"), wrap(masterController.deleteCoffee));
-router.post("/masters/coffee/archive", requireAuth, requireRole("ADMIN"), wrap(masterController.archiveCoffee));
-router.post("/masters/coffee/restore", requireAuth, requireRole("ADMIN"), wrap(masterController.restoreCoffee));
 
 router.post("/masters/shop/create", requireAuth, requireRole("ADMIN"), wrap(masterController.createShop));
 router.post("/masters/shop/update", requireAuth, requireRole("ADMIN"), wrap(masterController.updateShop));
 router.post("/masters/shop/delete", requireAuth, requireRole("ADMIN"), wrap(masterController.deleteShop));
-router.post("/masters/shop/archive", requireAuth, requireRole("ADMIN"), wrap(masterController.archiveShop));
-router.post("/masters/shop/restore", requireAuth, requireRole("ADMIN"), wrap(masterController.restoreShop));
 
 module.exports = router;
