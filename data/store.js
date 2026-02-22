@@ -5,15 +5,15 @@ const db = require("../db");
 const ORDER_STATUS = ["ENTWURF","EINGEGANGEN","FREIGEGEBEN","IN_PRODUKTION","VERPACKT","AUSGELIEFERT"];
 const BATCH_STATUS = ["GEPLANT","GEROESTET","ABGEKUEHLT","VERPACKT","BEREIT","AUSGELIEFERT"];
 
-let COFFEES = [];
-let SHOPS = [];
+let COFFEES = []; // ACTIVE only (for normal UI)
+let SHOPS = [];   // ACTIVE only (for normal UI)
 
-async function refreshMasters() {
-  const coffees = await db.query(`SELECT id, name, pack_default_kg FROM coffees ORDER BY name ASC`);
-  COFFEES = coffees.rows.map(r => ({ id: r.id, name: r.name, packDefaultKg: Number(r.pack_default_kg || 1) }));
-
-  const shops = await db.query(`SELECT id, name FROM shops ORDER BY name ASC`);
-  SHOPS = shops.rows.map(r => ({ id: r.id, name: r.name }));
+/* =========================
+   HELPERS
+========================= */
+function toNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 async function log(action, meta) {
@@ -23,9 +23,6 @@ async function log(action, meta) {
   );
 }
 
-/* =========================
-   MASTER DATA CRUD
-========================= */
 async function ensureInventoryRow(coffeeId) {
   await db.query(
     `INSERT INTO inventory (coffee_id, green_kg, roasted_kg)
@@ -35,16 +32,75 @@ async function ensureInventoryRow(coffeeId) {
   );
 }
 
+/* =========================
+   MASTERS (ACTIVE CACHE)
+   - Used by Orders dropdowns etc.
+========================= */
+async function refreshMasters() {
+  // ACTIVE coffees only
+  const coffees = await db.query(
+    `SELECT id, name, pack_default_kg
+     FROM coffees
+     WHERE COALESCE(is_active, TRUE) = TRUE
+     ORDER BY name ASC`
+  );
+  COFFEES = coffees.rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    packDefaultKg: toNum(r.pack_default_kg, 1) || 1
+  }));
+
+  // ACTIVE shops only
+  const shops = await db.query(
+    `SELECT id, name
+     FROM shops
+     WHERE COALESCE(is_active, TRUE) = TRUE
+     ORDER BY name ASC`
+  );
+  SHOPS = shops.rows.map(r => ({ id: r.id, name: r.name }));
+}
+
+/* =========================
+   MASTERS (ADMIN CRUD)
+   - Big-company behavior: archive if referenced
+========================= */
+async function listAllCoffees() {
+  const res = await db.query(
+    `SELECT id, name, pack_default_kg, COALESCE(is_active, TRUE) AS is_active
+     FROM coffees
+     ORDER BY COALESCE(is_active, TRUE) DESC, name ASC`
+  );
+  return res.rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    packDefaultKg: toNum(r.pack_default_kg, 1) || 1,
+    isActive: !!r.is_active
+  }));
+}
+
+async function listAllShops() {
+  const res = await db.query(
+    `SELECT id, name, COALESCE(is_active, TRUE) AS is_active
+     FROM shops
+     ORDER BY COALESCE(is_active, TRUE) DESC, name ASC`
+  );
+  return res.rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    isActive: !!r.is_active
+  }));
+}
+
 async function createCoffee({ id, name, packDefaultKg = 1 }) {
   const coffeeId = String(id || "").trim();
   const coffeeName = String(name || "").trim();
-  const pack = Number(packDefaultKg) || 1;
+  const pack = toNum(packDefaultKg, 1) || 1;
 
-  if (!coffeeId || !coffeeName) throw new Error("Coffee requires id and name.");
+  if (!coffeeId || !coffeeName) throw new Error("Coffee benötigt ID und Name.");
 
   await db.query(
-    `INSERT INTO coffees (id, name, pack_default_kg)
-     VALUES ($1,$2,$3)`,
+    `INSERT INTO coffees (id, name, pack_default_kg, is_active)
+     VALUES ($1,$2,$3, TRUE)`,
     [coffeeId, coffeeName, pack]
   );
 
@@ -56,17 +112,19 @@ async function createCoffee({ id, name, packDefaultKg = 1 }) {
 async function updateCoffee({ id, name, packDefaultKg = 1 }) {
   const coffeeId = String(id || "").trim();
   const coffeeName = String(name || "").trim();
-  const pack = Number(packDefaultKg) || 1;
+  const pack = toNum(packDefaultKg, 1) || 1;
 
-  if (!coffeeId) throw new Error("Coffee id required.");
-  if (!coffeeName) throw new Error("Coffee name required.");
+  if (!coffeeId) throw new Error("Coffee ID fehlt.");
+  if (!coffeeName) throw new Error("Coffee Name fehlt.");
 
   await db.query(
-    `UPDATE coffees SET name=$1, pack_default_kg=$2 WHERE id=$3`,
+    `UPDATE coffees
+     SET name=$1, pack_default_kg=$2
+     WHERE id=$3`,
     [coffeeName, pack, coffeeId]
   );
 
-  // keep order_items coffee_name in sync (optional but makes UI consistent)
+  // Keep historical order items consistent in UI
   await db.query(
     `UPDATE order_items SET coffee_name=$1 WHERE coffee_id=$2`,
     [coffeeName, coffeeId]
@@ -76,18 +134,26 @@ async function updateCoffee({ id, name, packDefaultKg = 1 }) {
   return true;
 }
 
+async function setCoffeeActive(coffeeId, isActive) {
+  const id = String(coffeeId || "").trim();
+  if (!id) throw new Error("Coffee ID fehlt.");
+  await db.query(`UPDATE coffees SET is_active=$1 WHERE id=$2`, [!!isActive, id]);
+  await log("MASTER_COFFEE_ACTIVE_SET", { coffeeId: id, isActive: !!isActive });
+  return true;
+}
+
 async function deleteCoffee(coffeeId) {
   const id = String(coffeeId || "").trim();
-  if (!id) throw new Error("Coffee id required.");
+  if (!id) throw new Error("Coffee ID fehlt.");
 
-  // Safety: do not delete if referenced by orders/batches (protect integrity)
+  // If referenced → archive instead of delete
   const refOrders = await db.query(`SELECT 1 FROM order_items WHERE coffee_id=$1 LIMIT 1`, [id]);
-  if (refOrders.rows.length) {
-    throw new Error("Diese Sorte ist in Bestellungen vorhanden und kann nicht gelöscht werden.");
-  }
   const refBatches = await db.query(`SELECT 1 FROM batches WHERE coffee_id=$1 LIMIT 1`, [id]);
-  if (refBatches.rows.length) {
-    throw new Error("Diese Sorte ist in Chargen vorhanden und kann nicht gelöscht werden.");
+
+  if (refOrders.rows.length || refBatches.rows.length) {
+    await db.query(`UPDATE coffees SET is_active = FALSE WHERE id=$1`, [id]);
+    await log("MASTER_COFFEE_ARCHIVE", { coffeeId: id });
+    return true;
   }
 
   await db.query(`DELETE FROM coffees WHERE id=$1`, [id]);
@@ -98,10 +164,11 @@ async function deleteCoffee(coffeeId) {
 async function createShop({ id, name }) {
   const shopId = String(id || "").trim();
   const shopName = String(name || "").trim();
-  if (!shopId || !shopName) throw new Error("Shop requires id and name.");
+  if (!shopId || !shopName) throw new Error("Filiale benötigt ID und Name.");
 
   await db.query(
-    `INSERT INTO shops (id, name) VALUES ($1,$2)`,
+    `INSERT INTO shops (id, name, is_active)
+     VALUES ($1,$2, TRUE)`,
     [shopId, shopName]
   );
 
@@ -112,29 +179,33 @@ async function createShop({ id, name }) {
 async function updateShop({ id, name }) {
   const shopId = String(id || "").trim();
   const shopName = String(name || "").trim();
-  if (!shopId || !shopName) throw new Error("Shop requires id and name.");
+  if (!shopId || !shopName) throw new Error("Filiale benötigt ID und Name.");
 
-  await db.query(
-    `UPDATE shops SET name=$1 WHERE id=$2`,
-    [shopName, shopId]
-  );
-
+  await db.query(`UPDATE shops SET name=$1 WHERE id=$2`, [shopName, shopId]);
   await log("MASTER_SHOP_UPDATE", { shopId, name: shopName });
+  return true;
+}
+
+async function setShopActive(shopId, isActive) {
+  const id = String(shopId || "").trim();
+  if (!id) throw new Error("Shop ID fehlt.");
+  await db.query(`UPDATE shops SET is_active=$1 WHERE id=$2`, [!!isActive, id]);
+  await log("MASTER_SHOP_ACTIVE_SET", { shopId: id, isActive: !!isActive });
   return true;
 }
 
 async function deleteShop(shopId) {
   const id = String(shopId || "").trim();
-  if (!id) throw new Error("Shop id required.");
+  if (!id) throw new Error("Shop ID fehlt.");
 
-  // Safety: do not delete if referenced by orders/users
+  // If referenced → archive
   const refOrders = await db.query(`SELECT 1 FROM orders WHERE shop_id=$1 LIMIT 1`, [id]);
-  if (refOrders.rows.length) {
-    throw new Error("Diese Filiale hat Bestellungen und kann nicht gelöscht werden.");
-  }
   const refUsers = await db.query(`SELECT 1 FROM users WHERE shop_id=$1 LIMIT 1`, [id]);
-  if (refUsers.rows.length) {
-    throw new Error("Diese Filiale hat Benutzer und kann nicht gelöscht werden.");
+
+  if (refOrders.rows.length || refUsers.rows.length) {
+    await db.query(`UPDATE shops SET is_active = FALSE WHERE id=$1`, [id]);
+    await log("MASTER_SHOP_ARCHIVE", { shopId: id });
+    return true;
   }
 
   await db.query(`DELETE FROM shops WHERE id=$1`, [id]);
@@ -165,7 +236,7 @@ async function listOrders() {
     itemsByOrder[it.order_id].push({
       coffeeId: it.coffee_id,
       coffeeName: it.coffee_name,
-      kg: Number(it.kg)
+      kg: toNum(it.kg, 0)
     });
   }
 
@@ -204,16 +275,29 @@ async function getOrderById(id) {
     status: o.status,
     note: o.note || "",
     createdAt: o.created_at.toISOString(),
-    items: itemsRes.rows.map(x => ({ coffeeId: x.coffee_id, coffeeName: x.coffee_name, kg: Number(x.kg) }))
+    items: itemsRes.rows.map(x => ({
+      coffeeId: x.coffee_id,
+      coffeeName: x.coffee_name,
+      kg: toNum(x.kg, 0)
+    }))
   };
 }
 
 async function createOrder(payload) {
   const id = randomUUID();
+
   await db.query(
     `INSERT INTO orders (id, channel, shop_id, customer_name, delivery_date, status, note)
      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [id, payload.channel, payload.shopId || null, payload.customerName || null, payload.deliveryDate, payload.status || "EINGEGANGEN", payload.note || ""]
+    [
+      id,
+      payload.channel,
+      payload.shopId || null,
+      payload.customerName || null,
+      payload.deliveryDate,
+      payload.status || "EINGEGANGEN",
+      payload.note || ""
+    ]
   );
 
   for (const it of payload.items || []) {
@@ -231,6 +315,7 @@ async function createOrder(payload) {
 async function setOrderStatus(id, nextStatus) {
   const before = await getOrderById(id);
   if (!before) return null;
+
   await db.query(`UPDATE orders SET status = $1 WHERE id = $2`, [nextStatus, id]);
   await log("ORDER_STATUS", { orderId: id, from: before.status, to: nextStatus });
   return true;
@@ -249,10 +334,12 @@ async function getInventory() {
   const invRes = await db.query(`SELECT coffee_id, green_kg, roasted_kg FROM inventory ORDER BY coffee_id ASC`);
   const greenBeansKg = {};
   const roastedKg = {};
+
   for (const r of invRes.rows) {
-    greenBeansKg[r.coffee_id] = Number(r.green_kg);
-    roastedKg[r.coffee_id] = Number(r.roasted_kg);
+    greenBeansKg[r.coffee_id] = toNum(r.green_kg, 0);
+    roastedKg[r.coffee_id] = toNum(r.roasted_kg, 0);
   }
+
   const upd = await db.query(`SELECT at FROM activity ORDER BY at DESC LIMIT 1`);
   const updatedAt = upd.rows.length ? upd.rows[0].at.toISOString() : new Date().toISOString();
   return { greenBeansKg, roastedKg, packagingUnits: {}, updatedAt };
@@ -261,7 +348,7 @@ async function getInventory() {
 async function applyInventoryChange(change) {
   const type = change.type;
   const coffeeId = change.coffeeId;
-  const deltaKg = Number(change.deltaKg);
+  const deltaKg = toNum(change.deltaKg, NaN);
   if (!coffeeId || !Number.isFinite(deltaKg)) return false;
 
   if (type === "GREEN") {
@@ -275,7 +362,7 @@ async function applyInventoryChange(change) {
 }
 
 /* =========================
-   PRODUCTION
+   PRODUCTION / DEMAND
 ========================= */
 async function computeRoastDemand() {
   const eligible = ["FREIGEGEBEN", "IN_PRODUKTION", "VERPACKT"];
@@ -288,10 +375,13 @@ async function computeRoastDemand() {
      ORDER BY SUM(oi.kg) DESC`,
     [eligible]
   );
-  return res.rows.map(r => ({ coffeeId: r.coffee_id, coffeeName: r.coffee_name, kg: Number(r.kg) }));
+  return res.rows.map(r => ({
+    coffeeId: r.coffee_id,
+    coffeeName: r.coffee_name,
+    kg: toNum(r.kg, 0)
+  }));
 }
 
-// Consume roasted stock for an order
 async function consumeRoastedForOrder(order) {
   const inv = await getInventory();
 
@@ -307,9 +397,9 @@ async function consumeRoastedForOrder(order) {
       `UPDATE inventory
        SET roasted_kg = GREATEST(0, roasted_kg - $1)
        WHERE coffee_id = $2`,
-      [Number(it.kg), it.coffeeId]
+      [toNum(it.kg, 0), it.coffeeId]
     );
-    await log("INVENTORY_MOVE", { from: "ROASTED", to: "DELIVERED", coffeeId: it.coffeeId, kg: Number(it.kg), orderId: order.id });
+    await log("INVENTORY_MOVE", { from: "ROASTED", to: "DELIVERED", coffeeId: it.coffeeId, kg: toNum(it.kg, 0), orderId: order.id });
   }
 
   await log("ORDER_DELIVER", { orderId: order.id });
@@ -325,7 +415,7 @@ async function listBatches() {
     id: b.id,
     coffeeId: b.coffee_id,
     coffeeName: b.coffee_name,
-    kg: Number(b.kg),
+    kg: toNum(b.kg, 0),
     status: b.status,
     note: b.note || "",
     createdAt: b.created_at.toISOString()
@@ -361,9 +451,9 @@ async function advanceBatch(id) {
        SET green_kg = GREATEST(0, green_kg - $1),
            roasted_kg = GREATEST(0, roasted_kg + $1)
        WHERE coffee_id = $2`,
-      [Number(batch.kg), batch.coffee_id]
+      [toNum(batch.kg, 0), batch.coffee_id]
     );
-    await log("INVENTORY_MOVE", { from: "GREEN", to: "ROASTED", coffeeId: batch.coffee_id, kg: Number(batch.kg), batchId: id });
+    await log("INVENTORY_MOVE", { from: "GREEN", to: "ROASTED", coffeeId: batch.coffee_id, kg: toNum(batch.kg, 0), batchId: id });
   }
 
   if (next === "AUSGELIEFERT") {
@@ -371,9 +461,9 @@ async function advanceBatch(id) {
       `UPDATE inventory
        SET roasted_kg = GREATEST(0, roasted_kg - $1)
        WHERE coffee_id = $2`,
-      [Number(batch.kg), batch.coffee_id]
+      [toNum(batch.kg, 0), batch.coffee_id]
     );
-    await log("INVENTORY_MOVE", { from: "ROASTED", to: "BATCH_DELIVERED", coffeeId: batch.coffee_id, kg: Number(batch.kg), batchId: id });
+    await log("INVENTORY_MOVE", { from: "ROASTED", to: "BATCH_DELIVERED", coffeeId: batch.coffee_id, kg: toNum(batch.kg, 0), batchId: id });
   }
 
   return true;
@@ -390,24 +480,33 @@ async function deleteBatch(id) {
 ========================= */
 async function listActivity() {
   const res = await db.query(`SELECT * FROM activity ORDER BY at DESC LIMIT 250`);
-  return res.rows.map(a => ({ id: a.id, at: a.at.toISOString(), action: a.action, meta: a.meta }));
+  return res.rows.map(a => ({
+    id: a.id,
+    at: a.at.toISOString(),
+    action: a.action,
+    meta: a.meta
+  }));
 }
 
 module.exports = {
   ORDER_STATUS,
   BATCH_STATUS,
 
-  get COFFEES() { return COFFEES; },
-  get SHOPS() { return SHOPS; },
+  get COFFEES() { return COFFEES; }, // active only
+  get SHOPS() { return SHOPS; },     // active only
   refreshMasters,
 
-  // Master CRUD
+  // Admin master data (all)
+  listAllCoffees,
+  listAllShops,
   createCoffee,
   updateCoffee,
   deleteCoffee,
+  setCoffeeActive,
   createShop,
   updateShop,
   deleteShop,
+  setShopActive,
 
   // Orders
   listOrders,
