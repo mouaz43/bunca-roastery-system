@@ -2,10 +2,11 @@
   var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
   var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
   var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
+  var f = (typeof filters !== "undefined" && filters) ? filters : { search:"", status:"ALL", channel:"ALL", shop:"ALL", range:"30" };
 
-  var f = (typeof filters !== "undefined" && filters) ? filters : {
-    search: "", status: "ALL", channel: "ALL", shop: "ALL", range: "30"
-  };
+  // Detect role via layout-injected currentUser
+  var u = (typeof currentUser !== "undefined" && currentUser) ? currentUser : null;
+  var isShop = (u && u.role === "SHOP");
 
   function statusInfo(status){
     var map = {
@@ -55,7 +56,13 @@
 <div class="card-grid">
   <div class="card">
     <h2>Bestellungen</h2>
-    <p>Erfassen, freigeben, verfolgen. Freigegebene Bestellungen erzeugen Produktionsbedarf.</p>
+    <p>
+      <% if (isShop) { %>
+        Sie sehen nur Bestellungen Ihrer Filiale. Freigabe und Auslieferung macht die Rösterei.
+      <% } else { %>
+        Erfassen, freigeben, verfolgen. Freigegebene Bestellungen erzeugen Produktionsbedarf.
+      <% } %>
+    </p>
   </div>
 
   <div class="card">
@@ -78,18 +85,20 @@
       <option value="AUSGELIEFERT" <%= (f.status==="AUSGELIEFERT"?"selected":"") %>>Ausgeliefert</option>
     </select>
 
-    <select class="select" name="channel">
-      <option value="ALL" <%= (f.channel==="ALL"?"selected":"") %>>Kanal: Alle</option>
-      <option value="FILIALE" <%= (f.channel==="FILIALE"?"selected":"") %>>Filiale</option>
-      <option value="B2B" <%= (f.channel==="B2B"?"selected":"") %>>B2B</option>
-    </select>
+    <% if (!isShop) { %>
+      <select class="select" name="channel">
+        <option value="ALL" <%= (f.channel==="ALL"?"selected":"") %>>Kanal: Alle</option>
+        <option value="FILIALE" <%= (f.channel==="FILIALE"?"selected":"") %>>Filiale</option>
+        <option value="B2B" <%= (f.channel==="B2B"?"selected":"") %>>B2B</option>
+      </select>
 
-    <select class="select" name="shop">
-      <option value="ALL" <%= (f.shop==="ALL"?"selected":"") %>>Filiale: Alle</option>
-      <% for (var s=0; s<safeShops.length; s++) { %>
-        <option value="<%= safeShops[s].id %>" <%= (f.shop===safeShops[s].id?"selected":"") %>><%= safeShops[s].name %></option>
-      <% } %>
-    </select>
+      <select class="select" name="shop">
+        <option value="ALL" <%= (f.shop==="ALL"?"selected":"") %>>Filiale: Alle</option>
+        <% for (var s=0; s<safeShops.length; s++) { %>
+          <option value="<%= safeShops[s].id %>" <%= (f.shop===safeShops[s].id?"selected":"") %>><%= safeShops[s].name %></option>
+        <% } %>
+      </select>
+    <% } %>
 
     <select class="select" name="range">
       <option value="7" <%= (String(f.range)==="7"?"selected":"") %>>Zeitraum: 7 Tage</option>
@@ -115,7 +124,13 @@
   <div class="section-head">
     <div>
       <div class="section-title">Neue Bestellung</div>
-      <div class="section-sub">Mindestens eine Position. Lieferdatum bitte auswählen. Filiale oder B2B Kanal.</div>
+      <div class="section-sub">
+        <% if (isShop) { %>
+          Filiale wird automatisch gesetzt. Sie können nur Filialbestellungen anlegen.
+        <% } else { %>
+          Mindestens eine Position. Filiale oder B2B Kanal.
+        <% } %>
+      </div>
     </div>
     <div class="spacer"></div>
     <a class="btn btn-sm btn-ghost" href="#list">Zur Liste</a>
@@ -125,19 +140,26 @@
     <form method="POST" action="/actions/orders/create">
       <div class="filterbar" style="margin-bottom:12px;">
         <div class="filter-left">
-          <select class="select" name="channel">
-            <option value="FILIALE">Kanal: Filiale</option>
-            <option value="B2B">Kanal: B2B</option>
-          </select>
+          <% if (!isShop) { %>
+            <select class="select" name="channel">
+              <option value="FILIALE">Kanal: Filiale</option>
+              <option value="B2B">Kanal: B2B</option>
+            </select>
 
-          <select class="select" name="shopId">
-            <option value="">Filiale wählen</option>
-            <% for (var ss=0; ss<safeShops.length; ss++) { %>
-              <option value="<%= safeShops[ss].id %>"><%= safeShops[ss].name %></option>
-            <% } %>
-          </select>
+            <select class="select" name="shopId">
+              <option value="">Filiale wählen</option>
+              <% for (var ss=0; ss<safeShops.length; ss++) { %>
+                <option value="<%= safeShops[ss].id %>"><%= safeShops[ss].name %></option>
+              <% } %>
+            </select>
 
-          <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" style="min-width:240px;" />
+            <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" style="min-width:240px;" />
+          <% } else { %>
+            <!-- For SHOP users: controller enforces channel=FILIALE and shopId=currentUser.shopId -->
+            <input type="hidden" name="channel" value="FILIALE" />
+            <input type="hidden" name="shopId" value="<%= (u && u.shopId) ? u.shopId : '' %>" />
+          <% } %>
+
           <input class="input" type="date" name="deliveryDate" value="<%= todayISO() %>" />
         </div>
 
@@ -174,7 +196,7 @@
       </div>
 
       <div class="mt-3">
-        <input class="input" name="note" placeholder="Notiz (optional) – z.B. Lieferfenster, Verpackung, Hinweise" />
+        <input class="input" name="note" placeholder="Notiz (optional) – z.B. Lieferfenster, Hinweise" />
       </div>
     </form>
   </div>
@@ -185,7 +207,13 @@
   <div class="section-head">
     <div>
       <div class="section-title">Bestell-Liste</div>
-      <div class="section-sub">Schnellaktionen direkt pro Bestellung. Details unter der Zeile.</div>
+      <div class="section-sub">
+        <% if (isShop) { %>
+          Status wird von der Rösterei gepflegt. Sie können hier nur ansehen.
+        <% } else { %>
+          Schnellaktionen direkt pro Bestellung. Details unter der Zeile.
+        <% } %>
+      </div>
     </div>
     <div class="spacer"></div>
     <div class="badge info"><span class="dot"></span><%= safeOrders.length %> Treffer</div>
@@ -193,13 +221,13 @@
 
   <div class="section-body" style="padding:0;">
     <div class="table-wrap" style="border-radius:0; border-left:none; border-right:none; border-bottom:none;">
-      <div class="table-head" style="grid-template-columns: 110px 110px 1fr 120px 160px 340px;">
+      <div class="table-head" style="grid-template-columns: 110px 110px 1fr 120px 160px <%= isShop ? '220px' : '340px' %>;">
         <div>ID</div>
         <div>Kanal</div>
         <div>Ziel</div>
         <div>Lieferung</div>
         <div>Status</div>
-        <div class="right">Aktionen</div>
+        <div class="right"><%= isShop ? "Info" : "Aktionen" %></div>
       </div>
 
       <% if (!safeOrders.length) { %>
@@ -220,7 +248,7 @@
           var s = statusInfo(o.status);
           var total = sumKg(o.items);
       %>
-        <div class="table-row" style="grid-template-columns: 110px 110px 1fr 120px 160px 340px;">
+        <div class="table-row" style="grid-template-columns: 110px 110px 1fr 120px 160px <%= isShop ? '220px' : '340px' %>;">
           <div class="mono"><%= shortId(o.id) %></div>
           <div><%= channelLabel(o) %></div>
           <div>
@@ -231,24 +259,28 @@
           <div><span class="<%= s.cls %>"><span class="dot"></span><%= s.label %></span></div>
 
           <div class="row-actions">
-            <form method="POST" action="/actions/orders/<%= o.id %>/approve">
-              <button class="btn btn-sm" type="submit">Freigeben</button>
-            </form>
+            <% if (!isShop) { %>
+              <form method="POST" action="/actions/orders/<%= o.id %>/approve">
+                <button class="btn btn-sm" type="submit">Freigeben</button>
+              </form>
 
-            <form method="POST" action="/actions/orders/<%= o.id %>/advance">
-              <button class="btn btn-sm btn-primary" type="submit">
-                <span class="btn-icon" aria-hidden="true"></span>
-                Weiter
-              </button>
-            </form>
+              <form method="POST" action="/actions/orders/<%= o.id %>/advance">
+                <button class="btn btn-sm btn-primary" type="submit">
+                  <span class="btn-icon" aria-hidden="true"></span>
+                  Weiter
+                </button>
+              </form>
 
-            <form method="POST" action="/actions/orders/<%= o.id %>/deliver" onsubmit="return confirm('Auslieferung buchen? Röstkaffee wird abgezogen.');">
-              <button class="btn btn-sm" type="submit">Ausliefern</button>
-            </form>
+              <form method="POST" action="/actions/orders/<%= o.id %>/deliver" onsubmit="return confirm('Auslieferung buchen? Röstkaffee wird abgezogen.');">
+                <button class="btn btn-sm" type="submit">Ausliefern</button>
+              </form>
 
-            <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
-              <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
-            </form>
+              <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
+                <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+              </form>
+            <% } else { %>
+              <span class="small-note">Nur Ansicht</span>
+            <% } %>
           </div>
         </div>
 
@@ -258,9 +290,11 @@
               <div class="row">
                 <div style="font-weight:950;">Details</div>
                 <div class="spacer"></div>
-                <a class="btn btn-sm btn-ghost" href="/production">Produktion</a>
                 <a class="btn btn-sm btn-ghost" href="/inventory">Lager</a>
-                <a class="btn btn-sm btn-ghost" href="/activity">Aktivität</a>
+                <% if (!isShop) { %>
+                  <a class="btn btn-sm btn-ghost" href="/production">Produktion</a>
+                  <a class="btn btn-sm btn-ghost" href="/activity">Aktivität</a>
+                <% } %>
               </div>
 
               <div class="mt-3">
@@ -279,6 +313,12 @@
                   <div class="small-note">Keine Positionen</div>
                 <% } %>
               </div>
+
+              <% if (isShop) { %>
+                <div class="mt-3 small-note">
+                  <strong>Hinweis:</strong> Freigabe, Produktion und Auslieferung werden von der Rösterei bearbeitet.
+                </div>
+              <% } %>
             </div>
           </div>
         </div>
