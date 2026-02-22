@@ -1,5 +1,6 @@
 // controllers/pageController.js
 const store = require("../data/store");
+const adminController = require("../controllers/adminController");
 
 function base(activeNav, title, subtitle) {
   return {
@@ -117,11 +118,7 @@ exports.renderDashboard = async (req, res) => {
       : [
           "Wenn etwas dringend ist: Bestellungen → Produktion → Lager.",
           "Aktivität zeigt jede Änderung."
-        ],
-    hintMeta: {
-      left: shopMode ? `Rolle: Filiale (${shopId || "-"})` : "Rolle: Admin",
-      right: "Update: " + String(inv.updatedAt).slice(0, 19).replace("T", " ")
-    }
+        ]
   }));
 };
 
@@ -205,15 +202,18 @@ exports.renderAnalytics = async (req, res) => {
 };
 
 exports.renderSettings = async (req, res) => {
-  // IMPORTANT: settings needs active + archived
-  const allCoffees = await store.listAllCoffees();
-  const allShops = await store.listAllShops();
+  // Settings needs users + master lists
+  const users = await adminController.listUsers();
+
+  const allCoffees = (typeof store.listAllCoffees === "function") ? await store.listAllCoffees() : store.COFFEES;
+  const allShops = (typeof store.listAllShops === "function") ? await store.listAllShops() : store.SHOPS;
 
   res.render("settings", Object.assign(base("settings", "Einstellungen", "Stammdaten und Benutzerverwaltung"), {
-    coffees: store.COFFEES, // active
-    shops: store.SHOPS,     // active
+    coffees: store.COFFEES,
+    shops: store.SHOPS,
     allCoffees,
     allShops,
+    users,
     query: req.query
   }));
 };
