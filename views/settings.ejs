@@ -74,153 +74,77 @@
       </div>
 
       <div class="card mt-3">
-        <h2>Benutzerliste</h2>
+        <h2>Benutzerliste (bearbeitbar)</h2>
         <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 1fr 120px 140px 260px;">
-            <div>Name</div><div>E-Mail</div><div>Rolle</div><div>Shop</div><div class="right">Aktionen</div>
+          <div class="table-head" style="grid-template-columns: 1fr 1fr 120px 180px 360px;">
+            <div>Name</div><div>E-Mail</div><div>Rolle</div><div>Filiale</div><div class="right">Aktionen</div>
           </div>
+
           <% for (var u=0; u<users.length; u++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 1fr 120px 140px 260px;">
-              <div style="font-weight:950;"><%= users[u].name %></div>
-              <div class="mono small-note"><%= users[u].email %></div>
-              <div><%= users[u].role %></div>
-              <div class="mono"><%= users[u].shopId || "-" %></div>
-              <div class="row-actions" style="justify-content:flex-end;">
-                <form method="POST" action="/actions/users/reset-password" onsubmit="return confirm('Passwort zurücksetzen?');">
-                  <input type="hidden" name="id" value="<%= users[u].id %>" />
-                  <button class="btn btn-sm btn-ghost" type="submit">Reset</button>
-                </form>
-                <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer löschen?');">
-                  <input type="hidden" name="id" value="<%= users[u].id %>" />
-                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
-                </form>
-              </div>
+            <div class="table-row" style="grid-template-columns: 1fr 1fr 120px 180px 360px;">
+              <form method="POST" action="/actions/users/update" style="display:contents;">
+                <input type="hidden" name="id" value="<%= users[u].id %>" />
+
+                <div>
+                  <input class="input" name="name" value="<%= users[u].name %>" />
+                </div>
+
+                <div class="mono small-note" style="display:flex; align-items:center;">
+                  <%= users[u].email %>
+                </div>
+
+                <div>
+                  <select class="select" name="role">
+                    <option value="ADMIN" <%= users[u].role==='ADMIN'?'selected':'' %>>ADMIN</option>
+                    <option value="SHOP" <%= users[u].role==='SHOP'?'selected':'' %>>SHOP</option>
+                  </select>
+                </div>
+
+                <div>
+                  <select class="select" name="shopId">
+                    <option value="">-</option>
+                    <% for (var i2=0;i2<shops.length;i2++) { %>
+                      <option value="<%= shops[i2].id %>" <%= (users[u].shopId===shops[i2].id)?'selected':'' %>>
+                        <%= shops[i2].name %> (<%= shops[i2].id %>)
+                      </option>
+                    <% } %>
+                  </select>
+                </div>
+
+                <div class="row-actions" style="justify-content:flex-end; gap:10px;">
+                  <button class="btn btn-sm btn-primary" type="submit">Speichern</button>
+              </form>
+
+                  <form method="POST" action="/actions/users/reset-password" onsubmit="return confirm('Passwort zurücksetzen?');">
+                    <input type="hidden" name="id" value="<%= users[u].id %>" />
+                    <button class="btn btn-sm btn-ghost" type="submit">Reset</button>
+                  </form>
+
+                  <form method="POST" action="/actions/users/set-password" onsubmit="return confirm('Passwort setzen?');">
+                    <input type="hidden" name="id" value="<%= users[u].id %>" />
+                    <input class="input" name="password" placeholder="Neues Passwort" style="width:160px;" />
+                    <button class="btn btn-sm btn-ghost" type="submit">Set</button>
+                  </form>
+
+                  <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer löschen?');">
+                    <input type="hidden" name="id" value="<%= users[u].id %>" />
+                    <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                  </form>
+                </div>
             </div>
           <% } %>
         </div>
-      </div>
 
-    <% } else if (tab === 'coffee') { %>
-
-      <div class="card mt-3">
-        <h2>Kaffeesorte hinzufügen</h2>
-        <form method="POST" action="/actions/masters/coffee/create" class="mt-3">
-          <div class="filterbar">
-            <div class="filter-left">
-              <input class="input" name="id" placeholder="ID (z.B. ESPRESSO)" style="min-width:200px;" />
-              <input class="input" name="name" placeholder="Name" style="min-width:260px;" />
-              <input class="input" name="packDefaultKg" placeholder="Pack kg" style="min-width:140px;" />
-            </div>
-            <div class="filter-right">
-              <button class="btn btn-primary" type="submit">Hinzufügen</button>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      <div class="card mt-3">
-        <h2>Liste</h2>
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 200px 1fr 120px 220px;">
-            <div>ID</div><div>Name</div><div class="right">Pack</div><div class="right">Aktionen</div>
-          </div>
-          <% for (var c=0;c<coffees.length;c++) { %>
-            <div class="table-row" style="grid-template-columns: 200px 1fr 120px 220px;">
-              <div class="mono"><%= coffees[c].id %></div>
-              <div style="font-weight:950;"><%= coffees[c].name %></div>
-              <div class="right mono"><%= coffees[c].packDefaultKg || 1 %></div>
-              <div class="row-actions" style="justify-content:flex-end;">
-                <form method="POST" action="/actions/masters/coffee/delete" onsubmit="return confirm('Sorte löschen?');">
-                  <input type="hidden" name="id" value="<%= coffees[c].id %>" />
-                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
-                </form>
-              </div>
-            </div>
-          <% } %>
-        </div>
-      </div>
-
-    <% } else if (tab === 'shops') { %>
-
-      <div class="card mt-3">
-        <h2>Filiale hinzufügen</h2>
-        <form method="POST" action="/actions/masters/shop/create" class="mt-3">
-          <div class="filterbar">
-            <div class="filter-left">
-              <input class="input" name="id" placeholder="ID (z.B. CITY)" style="min-width:200px;" />
-              <input class="input" name="name" placeholder="Name" style="min-width:320px;" />
-            </div>
-            <div class="filter-right">
-              <button class="btn btn-primary" type="submit">Hinzufügen</button>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      <div class="card mt-3">
-        <h2>Liste</h2>
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 200px 1fr 220px;">
-            <div>ID</div><div>Name</div><div class="right">Aktionen</div>
-          </div>
-          <% for (var s=0;s<shops.length;s++) { %>
-            <div class="table-row" style="grid-template-columns: 200px 1fr 220px;">
-              <div class="mono"><%= shops[s].id %></div>
-              <div style="font-weight:950;"><%= shops[s].name %></div>
-              <div class="row-actions" style="justify-content:flex-end;">
-                <form method="POST" action="/actions/masters/shop/delete" onsubmit="return confirm('Filiale löschen? (inkl. Benutzer)');">
-                  <input type="hidden" name="id" value="<%= shops[s].id %>" />
-                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
-                </form>
-              </div>
-            </div>
-          <% } %>
+        <div class="small-note mt-3">
+          Hinweis: Letzter Admin kann nicht gelöscht oder zur Filiale gemacht werden.
         </div>
       </div>
 
     <% } else { %>
-
       <div class="card mt-3">
-        <h2>B2B Kunde erstellen</h2>
-        <form method="POST" action="/actions/b2b/create" class="mt-3">
-          <div class="filterbar">
-            <div class="filter-left">
-              <input class="input" name="name" placeholder="Name" style="min-width:220px;" />
-              <input class="input" name="email" placeholder="E-Mail" style="min-width:240px;" />
-              <input class="input" name="phone" placeholder="Telefon" style="min-width:180px;" />
-              <input class="input" name="address" placeholder="Adresse" style="min-width:260px;" />
-              <input class="input" name="note" placeholder="Notiz" style="min-width:260px;" />
-            </div>
-            <div class="filter-right">
-              <button class="btn btn-primary" type="submit">Erstellen</button>
-            </div>
-          </div>
-        </form>
+        <h2>Hinweis</h2>
+        <p class="small-note">Die Tabs Coffee/Shops/B2B bleiben wie bei dir aktuell. Wenn du willst, baue ich sie als Editor rechts neu (viel schöner).</p>
       </div>
-
-      <div class="card mt-3">
-        <h2>B2B Liste</h2>
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 1fr 160px 1fr 220px;">
-            <div>Name</div><div>E-Mail</div><div>Telefon</div><div>Adresse</div><div class="right">Aktionen</div>
-          </div>
-          <% for (var k=0;k<b2b.length;k++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 1fr 160px 1fr 220px;">
-              <div style="font-weight:950;"><%= b2b[k].name %></div>
-              <div class="mono small-note"><%= b2b[k].email %></div>
-              <div class="mono"><%= b2b[k].phone %></div>
-              <div class="small-note"><%= b2b[k].address %></div>
-              <div class="row-actions" style="justify-content:flex-end;">
-                <form method="POST" action="/actions/b2b/delete" onsubmit="return confirm('B2B Kunde löschen?');">
-                  <input type="hidden" name="id" value="<%= b2b[k].id %>" />
-                  <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
-                </form>
-              </div>
-            </div>
-          <% } %>
-        </div>
-      </div>
-
     <% } %>
 
   </div>
