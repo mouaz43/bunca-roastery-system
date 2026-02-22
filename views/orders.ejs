@@ -16,8 +16,7 @@
 
   function esc(s){ return encodeURIComponent(String(s||"")); }
   function buildLink(extra){
-    var qs = "tab=orders"; // dummy to avoid empty
-    qs = "q="+esc(filters.search)+"&status="+esc(filters.status)+"&channel="+esc(filters.channel)+"&shop="+esc(filters.shop)+"&range="+esc(filters.range);
+    var qs = "q="+esc(filters.search)+"&status="+esc(filters.status)+"&channel="+esc(filters.channel)+"&shop="+esc(filters.shop)+"&range="+esc(filters.range);
     if (extra) qs += "&" + extra;
     return "/orders?" + qs;
   }
@@ -124,6 +123,9 @@
         <form id="orderForm" method="POST" action="/actions/orders/create">
           <input type="hidden" name="payload" id="payload" value="" />
 
+          <!-- ISO date hidden (server needs YYYY-MM-DD always) -->
+          <input type="hidden" id="deliveryDate" value="" />
+
           <div style="display:grid; gap:10px;">
             <div class="row" style="gap:10px;">
               <% if (!shopMode) { %>
@@ -135,7 +137,8 @@
                 <div class="badge ok"><span class="dot"></span>FILIALE</div>
               <% } %>
 
-              <input class="input" id="deliveryDate" type="date" style="width:220px;" />
+              <!-- UI date picker (Safari may display locale, we convert to ISO in JS) -->
+              <input class="input" id="deliveryDateUI" type="date" style="width:220px;" />
             </div>
 
             <% if (!shopMode) { %>
@@ -277,6 +280,37 @@
     document.getElementById("items").appendChild(wrap);
   }
 
+  function toISODate(val){
+    if (!val) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+
+    // Safari/locale fallback: MM/DD/YYYY
+    const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const mm = String(m[1]).padStart(2,"0");
+      const dd = String(m[2]).padStart(2,"0");
+      return `${m[3]}-${mm}-${dd}`;
+    }
+    return "";
+  }
+
+  function setDefaultDate(){
+    const ui = document.getElementById("deliveryDateUI");
+    const hid = document.getElementById("deliveryDate");
+    if (!ui || !hid) return;
+
+    // default: tomorrow
+    if (!ui.value) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      const iso = d.toISOString().slice(0,10);
+      ui.value = iso;
+      hid.value = iso;
+      return;
+    }
+    hid.value = toISODate(ui.value);
+  }
+
   function syncChannelUI() {
     const ch = document.getElementById("channel");
     const channel = ch ? ch.value : "FILIALE";
@@ -298,11 +332,21 @@
     }
   }
 
-  // init
+  // init items + date
   if (document.getElementById("items")) {
     addItem();
     addItem();
+    setDefaultDate();
+
+    const dUI = document.getElementById("deliveryDateUI");
+    if (dUI) {
+      dUI.addEventListener("change", () => {
+        const hid = document.getElementById("deliveryDate");
+        if (hid) hid.value = toISODate(dUI.value);
+      });
+    }
   }
+
   const channelSel = document.getElementById("channel");
   if (channelSel) {
     channelSel.addEventListener("change", syncChannelUI);
@@ -321,14 +365,21 @@
   if (form) {
     form.addEventListener("submit", (e) => {
       const channel = shopMode ? "FILIALE" : (document.getElementById("channel")?.value || "FILIALE");
-      const date = document.getElementById("deliveryDate")?.value || "";
+
+      const dateISO =
+        document.getElementById("deliveryDate")?.value ||
+        toISODate(document.getElementById("deliveryDateUI")?.value || "");
+
+      const hid = document.getElementById("deliveryDate");
+      if (hid) hid.value = dateISO;
+
       const note = document.getElementById("note")?.value || "";
 
       let payload = {
         channel,
         shopId: shopMode ? shopId : (document.getElementById("shopId")?.value || ""),
         customerName: (document.getElementById("customerName")?.value || ""),
-        deliveryDate: date,
+        deliveryDate: dateISO,
         note,
         items: []
       };
