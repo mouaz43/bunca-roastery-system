@@ -5,8 +5,8 @@ const db = require("../db");
 const ORDER_STATUS = ["ENTWURF","EINGEGANGEN","FREIGEGEBEN","IN_PRODUKTION","VERPACKT","AUSGELIEFERT"];
 const BATCH_STATUS = ["GEPLANT","GEROESTET","ABGEKUEHLT","VERPACKT","BEREIT","AUSGELIEFERT"];
 
-let COFFEES = []; // ACTIVE only (for normal UI)
-let SHOPS = [];   // ACTIVE only (for normal UI)
+let COFFEES = []; // active UI list
+let SHOPS = [];   // active UI list
 
 /* =========================
    HELPERS
@@ -14,6 +14,10 @@ let SHOPS = [];   // ACTIVE only (for normal UI)
 function toNum(v, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function clean(v) {
+  return String(v ?? "").trim();
 }
 
 async function log(action, meta) {
@@ -33,11 +37,9 @@ async function ensureInventoryRow(coffeeId) {
 }
 
 /* =========================
-   MASTERS (ACTIVE CACHE)
-   - Used by Orders dropdowns etc.
+   MASTERS CACHE (ACTIVE)
 ========================= */
 async function refreshMasters() {
-  // ACTIVE coffees only
   const coffees = await db.query(
     `SELECT id, name, pack_default_kg
      FROM coffees
@@ -50,7 +52,6 @@ async function refreshMasters() {
     packDefaultKg: toNum(r.pack_default_kg, 1) || 1
   }));
 
-  // ACTIVE shops only
   const shops = await db.query(
     `SELECT id, name
      FROM shops
@@ -61,8 +62,7 @@ async function refreshMasters() {
 }
 
 /* =========================
-   MASTERS (ADMIN CRUD)
-   - Big-company behavior: archive if referenced
+   ADMIN LISTS (ALL)
 ========================= */
 async function listAllCoffees() {
   const res = await db.query(
@@ -91,9 +91,12 @@ async function listAllShops() {
   }));
 }
 
+/* =========================
+   COFFEES CRUD (HARD DELETE)
+========================= */
 async function createCoffee({ id, name, packDefaultKg = 1 }) {
-  const coffeeId = String(id || "").trim();
-  const coffeeName = String(name || "").trim();
+  const coffeeId = clean(id);
+  const coffeeName = clean(name);
   const pack = toNum(packDefaultKg, 1) || 1;
 
   if (!coffeeId || !coffeeName) throw new Error("Coffee benötigt ID und Name.");
@@ -110,8 +113,8 @@ async function createCoffee({ id, name, packDefaultKg = 1 }) {
 }
 
 async function updateCoffee({ id, name, packDefaultKg = 1 }) {
-  const coffeeId = String(id || "").trim();
-  const coffeeName = String(name || "").trim();
+  const coffeeId = clean(id);
+  const coffeeName = clean(name);
   const pack = toNum(packDefaultKg, 1) || 1;
 
   if (!coffeeId) throw new Error("Coffee ID fehlt.");
@@ -124,7 +127,7 @@ async function updateCoffee({ id, name, packDefaultKg = 1 }) {
     [coffeeName, pack, coffeeId]
   );
 
-  // Keep historical order items consistent in UI
+  // Keep order display consistent
   await db.query(
     `UPDATE order_items SET coffee_name=$1 WHERE coffee_id=$2`,
     [coffeeName, coffeeId]
@@ -135,35 +138,47 @@ async function updateCoffee({ id, name, packDefaultKg = 1 }) {
 }
 
 async function setCoffeeActive(coffeeId, isActive) {
-  const id = String(coffeeId || "").trim();
+  const id = clean(coffeeId);
   if (!id) throw new Error("Coffee ID fehlt.");
   await db.query(`UPDATE coffees SET is_active=$1 WHERE id=$2`, [!!isActive, id]);
   await log("MASTER_COFFEE_ACTIVE_SET", { coffeeId: id, isActive: !!isActive });
   return true;
 }
 
+/**
+ * HARD DELETE COFFEE
+ * This will remove ALL related data so that FK constraints do not block deletion.
+ * This is intentionally destructive and matches "delete whatever I want".
+ */
 async function deleteCoffee(coffeeId) {
-  const id = String(coffeeId || "").trim();
+  const id = clean(coffeeId);
   if (!id) throw new Error("Coffee ID fehlt.");
 
-  // If referenced → archive instead of delete
-  const refOrders = await db.query(`SELECT 1 FROM order_items WHERE coffee_id=$1 LIMIT 1`, [id]);
-  const refBatches = await db.query(`SELECT 1 FROM batches WHERE coffee_id=$1 LIMIT 1`, [id]);
+  await db.query("BEGIN");
+  try {
+    // Remove dependent rows first (avoid FK blocks)
+    await db.query(`DELETE FROM order_items WHERE coffee_id=$1`, [id]);
+    await db.query(`DELETE FROM batches WHERE coffee_id=$1`, [id]);
+    await db.query(`DELETE FROM inventory WHERE coffee_id=$1`, [id]);
 
-  if (refOrders.rows.length || refBatches.rows.length) {
-    await db.query(`UPDATE coffees SET is_active = FALSE WHERE id=$1`, [id]);
-    await log("MASTER_COFFEE_ARCHIVE", { coffeeId: id });
+    // Now delete the coffee itself
+    const del = await db.query(`DELETE FROM coffees WHERE id=$1`, [id]);
+
+    await log("MASTER_COFFEE_HARD_DELETE", { coffeeId: id, deleted: del.rowCount });
+    await db.query("COMMIT");
     return true;
+  } catch (e) {
+    await db.query("ROLLBACK");
+    throw e;
   }
-
-  await db.query(`DELETE FROM coffees WHERE id=$1`, [id]);
-  await log("MASTER_COFFEE_DELETE", { coffeeId: id });
-  return true;
 }
 
+/* =========================
+   SHOPS CRUD (HARD DELETE)
+========================= */
 async function createShop({ id, name }) {
-  const shopId = String(id || "").trim();
-  const shopName = String(name || "").trim();
+  const shopId = clean(id);
+  const shopName = clean(name);
   if (!shopId || !shopName) throw new Error("Filiale benötigt ID und Name.");
 
   await db.query(
@@ -177,8 +192,8 @@ async function createShop({ id, name }) {
 }
 
 async function updateShop({ id, name }) {
-  const shopId = String(id || "").trim();
-  const shopName = String(name || "").trim();
+  const shopId = clean(id);
+  const shopName = clean(name);
   if (!shopId || !shopName) throw new Error("Filiale benötigt ID und Name.");
 
   await db.query(`UPDATE shops SET name=$1 WHERE id=$2`, [shopName, shopId]);
@@ -187,30 +202,41 @@ async function updateShop({ id, name }) {
 }
 
 async function setShopActive(shopId, isActive) {
-  const id = String(shopId || "").trim();
+  const id = clean(shopId);
   if (!id) throw new Error("Shop ID fehlt.");
   await db.query(`UPDATE shops SET is_active=$1 WHERE id=$2`, [!!isActive, id]);
   await log("MASTER_SHOP_ACTIVE_SET", { shopId: id, isActive: !!isActive });
   return true;
 }
 
+/**
+ * HARD DELETE SHOP
+ * Option A (implemented): delete all orders of that shop (and order_items cascade),
+ * set users.shop_id to NULL (so users can be reassigned), then delete the shop.
+ * If you prefer deleting users too, tell me and I'll switch to that.
+ */
 async function deleteShop(shopId) {
-  const id = String(shopId || "").trim();
+  const id = clean(shopId);
   if (!id) throw new Error("Shop ID fehlt.");
 
-  // If referenced → archive
-  const refOrders = await db.query(`SELECT 1 FROM orders WHERE shop_id=$1 LIMIT 1`, [id]);
-  const refUsers = await db.query(`SELECT 1 FROM users WHERE shop_id=$1 LIMIT 1`, [id]);
+  await db.query("BEGIN");
+  try {
+    // Delete orders of this shop (order_items will cascade)
+    await db.query(`DELETE FROM orders WHERE shop_id=$1`, [id]);
 
-  if (refOrders.rows.length || refUsers.rows.length) {
-    await db.query(`UPDATE shops SET is_active = FALSE WHERE id=$1`, [id]);
-    await log("MASTER_SHOP_ARCHIVE", { shopId: id });
+    // Detach users from this shop (keep accounts, or reassign later)
+    await db.query(`UPDATE users SET shop_id = NULL WHERE shop_id=$1`, [id]);
+
+    // Now delete shop
+    const del = await db.query(`DELETE FROM shops WHERE id=$1`, [id]);
+
+    await log("MASTER_SHOP_HARD_DELETE", { shopId: id, deleted: del.rowCount });
+    await db.query("COMMIT");
     return true;
+  } catch (e) {
+    await db.query("ROLLBACK");
+    throw e;
   }
-
-  await db.query(`DELETE FROM shops WHERE id=$1`, [id]);
-  await log("MASTER_SHOP_DELETE", { shopId: id });
-  return true;
 }
 
 /* =========================
@@ -492,11 +518,11 @@ module.exports = {
   ORDER_STATUS,
   BATCH_STATUS,
 
-  get COFFEES() { return COFFEES; }, // active only
-  get SHOPS() { return SHOPS; },     // active only
+  get COFFEES() { return COFFEES; },
+  get SHOPS() { return SHOPS; },
   refreshMasters,
 
-  // Admin master data (all)
+  // Admin master data
   listAllCoffees,
   listAllShops,
   createCoffee,
