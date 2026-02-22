@@ -5,10 +5,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= (typeof pageTitle !== "undefined" && pageTitle) ? pageTitle : "Bunca Rösterei" %></title>
-
-  <!-- One CSS only -->
-  <link rel="stylesheet" href="/css/app.css?v=latte-1" />
-  <script defer src="/js/app.js?v=latte-1"></script>
+  <link rel="stylesheet" href="/css/app.css?v=latte-pro-1" />
+  <script defer src="/js/app.js?v=latte-pro-1"></script>
 </head>
 
 <body>
@@ -19,6 +17,7 @@
     const user = (typeof currentUser !== "undefined") ? currentUser : null;
 
     const primary = (typeof primaryAction !== "undefined") ? primaryAction : null;
+    const secondary = (typeof secondaryAction !== "undefined") ? secondaryAction : null;
 
     const hintT = (typeof hintTitle !== "undefined") ? hintTitle : "Seitenhinweis";
     const hintL = (typeof hintLines !== "undefined" && hintLines) ? hintLines : [];
@@ -75,6 +74,9 @@
         </div>
 
         <div class="topbar-actions">
+          <% if (secondary && secondary.href && secondary.label) { %>
+            <a class="btn btn-sm btn-ghost" href="<%= secondary.href %>"><%= secondary.label %></a>
+          <% } %>
           <% if (primary && primary.href && primary.label) { %>
             <a class="btn btn-primary" href="<%= primary.href %>">
               <span class="btn-icon" aria-hidden="true"></span>
@@ -96,11 +98,13 @@
               <div class="helper-line"><%= line %></div>
             <% }) %>
           <% } else { %>
-            <div class="helper-line">Hier sehen Sie die wichtigsten Informationen und Aktionen dieser Seite.</div>
+            <div class="helper-line">Diese Seite zeigt die wichtigsten Aktionen und Daten für den aktuellen Schritt.</div>
           <% } %>
         </div>
       </footer>
     </main>
   </div>
+
+  <div class="toast-host" id="toastHost" style="display:none;"></div>
 </body>
 </html>
