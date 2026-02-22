@@ -11,13 +11,31 @@
   var masterOk = q.master_ok || null, masterError = q.master_error || null;
   var b2bOk = q.b2b_ok || null, b2bError = q.b2b_error || null;
 
-  function link(t){ return "/settings?tab=" + encodeURIComponent(t); }
+  // selection
+  var selUser = q.user || "";
+  var selCoffee = q.coffee || "";
+  var selShop = q.shop || "";
+  var selB2B = q.b2b || "";
+
+  function link(t, extra){
+    var base = "/settings?tab=" + encodeURIComponent(t);
+    if (!extra) return base;
+    return base + "&" + extra;
+  }
+  function find(list, id){
+    for (var i=0;i<list.length;i++) if (String(list[i].id)===String(id)) return list[i];
+    return null;
+  }
+  var uSel = selUser ? find(users, selUser) : null;
+  var cSel = selCoffee ? find(coffees, selCoffee) : null;
+  var sSel = selShop ? find(shops, selShop) : null;
+  var bSel = selB2B ? find(b2b, selB2B) : null;
 %>
 
 <div class="card-grid">
   <div class="card">
     <h2>Einstellungen</h2>
-    <p class="small-note">Alles an einem Ort: Benutzer, Stammdaten, B2B Kunden.</p>
+    <p class="small-note">Stammdaten & Benutzerverwaltung. Links auswählen, rechts bearbeiten.</p>
   </div>
   <div class="card">
     <h2>Status</h2>
@@ -45,107 +63,385 @@
       </div>
     </div>
 
-    <% if (tab === 'users') { %>
+    <!-- 2 column editor layout -->
+    <div class="card-grid mt-3" style="grid-template-columns: 380px 1fr; align-items:start;">
 
-      <div class="card mt-3">
-        <h2>Benutzer erstellen</h2>
-        <form method="POST" action="/actions/users/create" class="mt-3">
-          <div class="filterbar">
+      <!-- LEFT LIST -->
+      <div class="card">
+        <% if (tab==='users') { %>
+          <h2>Benutzer</h2>
+          <p class="small-note">Suchen, auswählen, bearbeiten.</p>
+          <div class="filterbar mt-3">
             <div class="filter-left">
-              <input class="input" name="name" placeholder="Name" style="min-width:180px;" />
-              <input class="input" name="email" placeholder="E-Mail" style="min-width:240px;" />
-              <select class="select" name="role">
-                <option value="SHOP">SHOP</option>
-                <option value="ADMIN">ADMIN</option>
-              </select>
-              <select class="select" name="shopId" style="min-width:220px;">
-                <option value="">Filiale (nur SHOP)</option>
-                <% for (var i=0;i<shops.length;i++) { %>
-                  <option value="<%= shops[i].id %>"><%= shops[i].name %> (<%= shops[i].id %>)</option>
-                <% } %>
-              </select>
-              <input class="input" name="password" placeholder="Passwort" style="min-width:180px;" />
+              <input class="input" placeholder="Suche (Name/E-Mail)" oninput="filterList('listUsers', this.value)" />
             </div>
             <div class="filter-right">
-              <button class="btn btn-primary" type="submit">Erstellen</button>
+              <a class="btn btn-sm btn-primary" href="#newUser">Neu</a>
             </div>
           </div>
-        </form>
-      </div>
-
-      <div class="card mt-3">
-        <h2>Benutzerliste (bearbeitbar)</h2>
-        <div class="table-wrap mt-3">
-          <div class="table-head" style="grid-template-columns: 1fr 1fr 120px 180px 360px;">
-            <div>Name</div><div>E-Mail</div><div>Rolle</div><div>Filiale</div><div class="right">Aktionen</div>
+          <div id="listUsers" class="mt-3" style="display:grid; gap:8px;">
+            <% for (var i=0;i<users.length;i++) { %>
+              <a class="nav-item <%= (uSel && uSel.id===users[i].id)?'active':'' %>"
+                 href="<%= link('users','user='+encodeURIComponent(users[i].id)) %>"
+                 data-text="<%= (users[i].name+' '+users[i].email).toLowerCase() %>"
+                 style="text-decoration:none;">
+                <div style="display:flex; flex-direction:column;">
+                  <div style="font-weight:950;"><%= users[i].name %></div>
+                  <div class="small-note mono"><%= users[i].email %> · <%= users[i].role %></div>
+                </div>
+              </a>
+            <% } %>
           </div>
 
-          <% for (var u=0; u<users.length; u++) { %>
-            <div class="table-row" style="grid-template-columns: 1fr 1fr 120px 180px 360px;">
-              <form method="POST" action="/actions/users/update" style="display:contents;">
-                <input type="hidden" name="id" value="<%= users[u].id %>" />
-
-                <div>
-                  <input class="input" name="name" value="<%= users[u].name %>" />
+        <% } else if (tab==='coffee') { %>
+          <h2>Kaffeesorten</h2>
+          <p class="small-note">Liste links, Editor rechts.</p>
+          <div class="filterbar mt-3">
+            <div class="filter-left">
+              <input class="input" placeholder="Suche (ID/Name)" oninput="filterList('listCoffee', this.value)" />
+            </div>
+            <div class="filter-right">
+              <a class="btn btn-sm btn-primary" href="#newCoffee">Neu</a>
+            </div>
+          </div>
+          <div id="listCoffee" class="mt-3" style="display:grid; gap:8px;">
+            <% for (var c=0;c<coffees.length;c++) { %>
+              <a class="nav-item <%= (cSel && cSel.id===coffees[c].id)?'active':'' %>"
+                 href="<%= link('coffee','coffee='+encodeURIComponent(coffees[c].id)) %>"
+                 data-text="<%= (coffees[c].id+' '+coffees[c].name).toLowerCase() %>"
+                 style="text-decoration:none;">
+                <div style="display:flex; flex-direction:column;">
+                  <div style="font-weight:950;"><%= coffees[c].name %></div>
+                  <div class="small-note mono"><%= coffees[c].id %> · Pack <%= coffees[c].packDefaultKg || 1 %>kg</div>
                 </div>
+              </a>
+            <% } %>
+          </div>
 
-                <div class="mono small-note" style="display:flex; align-items:center;">
-                  <%= users[u].email %>
+        <% } else if (tab==='shops') { %>
+          <h2>Filialen</h2>
+          <p class="small-note">Filialen verwalten.</p>
+          <div class="filterbar mt-3">
+            <div class="filter-left">
+              <input class="input" placeholder="Suche (ID/Name)" oninput="filterList('listShops', this.value)" />
+            </div>
+            <div class="filter-right">
+              <a class="btn btn-sm btn-primary" href="#newShop">Neu</a>
+            </div>
+          </div>
+          <div id="listShops" class="mt-3" style="display:grid; gap:8px;">
+            <% for (var s=0;s<shops.length;s++) { %>
+              <a class="nav-item <%= (sSel && sSel.id===shops[s].id)?'active':'' %>"
+                 href="<%= link('shops','shop='+encodeURIComponent(shops[s].id)) %>"
+                 data-text="<%= (shops[s].id+' '+shops[s].name).toLowerCase() %>"
+                 style="text-decoration:none;">
+                <div style="display:flex; flex-direction:column;">
+                  <div style="font-weight:950;"><%= shops[s].name %></div>
+                  <div class="small-note mono"><%= shops[s].id %></div>
                 </div>
+              </a>
+            <% } %>
+          </div>
 
-                <div>
+        <% } else { %>
+          <h2>B2B Kunden</h2>
+          <p class="small-note">B2B Stammdaten.</p>
+          <div class="filterbar mt-3">
+            <div class="filter-left">
+              <input class="input" placeholder="Suche (Name/E-Mail)" oninput="filterList('listB2B', this.value)" />
+            </div>
+            <div class="filter-right">
+              <a class="btn btn-sm btn-primary" href="#newB2B">Neu</a>
+            </div>
+          </div>
+          <div id="listB2B" class="mt-3" style="display:grid; gap:8px;">
+            <% for (var b=0;b<b2b.length;b++) { %>
+              <a class="nav-item <%= (bSel && bSel.id===b2b[b].id)?'active':'' %>"
+                 href="<%= link('b2b','b2b='+encodeURIComponent(b2b[b].id)) %>"
+                 data-text="<%= (b2b[b].name+' '+(b2b[b].email||'')).toLowerCase() %>"
+                 style="text-decoration:none;">
+                <div style="display:flex; flex-direction:column;">
+                  <div style="font-weight:950;"><%= b2b[b].name %></div>
+                  <div class="small-note mono"><%= b2b[b].email || '-' %></div>
+                </div>
+              </a>
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- RIGHT EDITOR -->
+      <div class="card">
+        <% if (tab==='users') { %>
+          <h2>Editor</h2>
+          <p class="small-note">Benutzer anlegen, bearbeiten, Passwort setzen, löschen.</p>
+
+          <div id="newUser" class="mt-3">
+            <h3 style="margin:0 0 10px 0;">Neuer Benutzer</h3>
+            <form method="POST" action="/actions/users/create">
+              <div class="filterbar">
+                <div class="filter-left">
+                  <input class="input" name="name" placeholder="Name" style="min-width:180px;" />
+                  <input class="input" name="email" placeholder="E-Mail" style="min-width:240px;" />
                   <select class="select" name="role">
-                    <option value="ADMIN" <%= users[u].role==='ADMIN'?'selected':'' %>>ADMIN</option>
-                    <option value="SHOP" <%= users[u].role==='SHOP'?'selected':'' %>>SHOP</option>
+                    <option value="SHOP">SHOP</option>
+                    <option value="ADMIN">ADMIN</option>
                   </select>
+                  <select class="select" name="shopId" style="min-width:220px;">
+                    <option value="">Filiale (nur SHOP)</option>
+                    <% for (var i=0;i<shops.length;i++) { %>
+                      <option value="<%= shops[i].id %>"><%= shops[i].name %> (<%= shops[i].id %>)</option>
+                    <% } %>
+                  </select>
+                  <input class="input" name="password" placeholder="Passwort" style="min-width:180px;" />
                 </div>
+                <div class="filter-right">
+                  <button class="btn btn-primary" type="submit">Erstellen</button>
+                </div>
+              </div>
+            </form>
+          </div>
 
-                <div>
+          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
+            <h3 style="margin:0 0 10px 0;">Benutzer bearbeiten</h3>
+            <% if (!uSel) { %>
+              <div class="small-note">Wähle links einen Benutzer aus.</div>
+            <% } else { %>
+              <form method="POST" action="/actions/users/update">
+                <input type="hidden" name="id" value="<%= uSel.id %>" />
+                <div class="card" style="margin:0;">
+                  <div class="small-note">E-Mail (stabil)</div>
+                  <div class="mono" style="font-weight:950;"><%= uSel.email %></div>
+
+                  <div class="mt-3 small-note">Name</div>
+                  <input class="input" name="name" value="<%= uSel.name %>" />
+
+                  <div class="mt-3 small-note">Rolle</div>
+                  <select class="select" name="role">
+                    <option value="ADMIN" <%= uSel.role==='ADMIN'?'selected':'' %>>ADMIN</option>
+                    <option value="SHOP" <%= uSel.role==='SHOP'?'selected':'' %>>SHOP</option>
+                  </select>
+
+                  <div class="mt-3 small-note">Filiale (nur SHOP)</div>
                   <select class="select" name="shopId">
                     <option value="">-</option>
-                    <% for (var i2=0;i2<shops.length;i2++) { %>
-                      <option value="<%= shops[i2].id %>" <%= (users[u].shopId===shops[i2].id)?'selected':'' %>>
-                        <%= shops[i2].name %> (<%= shops[i2].id %>)
+                    <% for (var j=0;j<shops.length;j++) { %>
+                      <option value="<%= shops[j].id %>" <%= (uSel.shopId===shops[j].id)?'selected':'' %>>
+                        <%= shops[j].name %> (<%= shops[j].id %>)
                       </option>
                     <% } %>
                   </select>
-                </div>
 
-                <div class="row-actions" style="justify-content:flex-end; gap:10px;">
-                  <button class="btn btn-sm btn-primary" type="submit">Speichern</button>
+                  <div class="row mt-3" style="justify-content:space-between;">
+                    <button class="btn btn-primary" type="submit">Speichern</button>
+                    <a class="btn btn-ghost" href="<%= link('users') %>">Auswahl löschen</a>
+                  </div>
+                </div>
               </form>
 
-                  <form method="POST" action="/actions/users/reset-password" onsubmit="return confirm('Passwort zurücksetzen?');">
-                    <input type="hidden" name="id" value="<%= users[u].id %>" />
-                    <button class="btn btn-sm btn-ghost" type="submit">Reset</button>
+              <div class="card mt-3">
+                <h2>Passwort</h2>
+                <div class="row" style="justify-content:space-between; gap:12px;">
+                  <form method="POST" action="/actions/users/reset-password" onsubmit="return confirm('Passwort zurücksetzen?');" style="display:flex; gap:10px; align-items:center;">
+                    <input type="hidden" name="id" value="<%= uSel.id %>" />
+                    <button class="btn btn-ghost" type="submit">Reset (Temp)</button>
                   </form>
 
-                  <form method="POST" action="/actions/users/set-password" onsubmit="return confirm('Passwort setzen?');">
-                    <input type="hidden" name="id" value="<%= users[u].id %>" />
-                    <input class="input" name="password" placeholder="Neues Passwort" style="width:160px;" />
-                    <button class="btn btn-sm btn-ghost" type="submit">Set</button>
-                  </form>
-
-                  <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer löschen?');">
-                    <input type="hidden" name="id" value="<%= users[u].id %>" />
-                    <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                  <form method="POST" action="/actions/users/set-password" onsubmit="return confirm('Neues Passwort setzen?');" style="display:flex; gap:10px; align-items:center;">
+                    <input type="hidden" name="id" value="<%= uSel.id %>" />
+                    <input class="input" name="password" placeholder="Neues Passwort (min 8)" style="min-width:220px;" />
+                    <button class="btn btn-ghost" type="submit">Setzen</button>
                   </form>
                 </div>
-            </div>
-          <% } %>
-        </div>
+              </div>
 
-        <div class="small-note mt-3">
-          Hinweis: Letzter Admin kann nicht gelöscht oder zur Filiale gemacht werden.
-        </div>
+              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
+                <h2>Danger Zone</h2>
+                <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= uSel.id %>" />
+                  <button class="btn btn-danger" type="submit">Benutzer löschen</button>
+                </form>
+                <div class="small-note mt-2">Letzter Admin kann nicht gelöscht werden.</div>
+              </div>
+            <% } %>
+          </div>
+
+        <% } else if (tab==='coffee') { %>
+          <h2>Editor</h2>
+          <p class="small-note">Kaffeesorte anlegen, bearbeiten, löschen.</p>
+
+          <div id="newCoffee" class="mt-3">
+            <h3 style="margin:0 0 10px 0;">Neue Kaffeesorte</h3>
+            <form method="POST" action="/actions/masters/coffee/create">
+              <div class="filterbar">
+                <div class="filter-left">
+                  <input class="input" name="id" placeholder="ID (z.B. ESPRESSO)" style="min-width:200px;" />
+                  <input class="input" name="name" placeholder="Name" style="min-width:260px;" />
+                  <input class="input" name="packDefaultKg" placeholder="Pack kg" style="min-width:140px;" />
+                </div>
+                <div class="filter-right">
+                  <button class="btn btn-primary" type="submit">Anlegen</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
+            <h3 style="margin:0 0 10px 0;">Sorte bearbeiten</h3>
+            <% if (!cSel) { %>
+              <div class="small-note">Wähle links eine Sorte aus.</div>
+            <% } else { %>
+              <form method="POST" action="/actions/masters/coffee/update">
+                <input type="hidden" name="id" value="<%= cSel.id %>" />
+                <div class="card" style="margin:0;">
+                  <div class="small-note">ID (stabil)</div>
+                  <div class="mono" style="font-weight:950;"><%= cSel.id %></div>
+
+                  <div class="mt-3 small-note">Name</div>
+                  <input class="input" name="name" value="<%= cSel.name %>" />
+
+                  <div class="mt-3 small-note">Pack Standard (kg)</div>
+                  <input class="input" name="packDefaultKg" value="<%= cSel.packDefaultKg || 1 %>" />
+
+                  <div class="row mt-3" style="justify-content:space-between;">
+                    <button class="btn btn-primary" type="submit">Speichern</button>
+                    <a class="btn btn-ghost" href="<%= link('coffee') %>">Auswahl löschen</a>
+                  </div>
+                </div>
+              </form>
+
+              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
+                <h2>Danger Zone</h2>
+                <form method="POST" action="/actions/masters/coffee/delete" onsubmit="return confirm('Sorte wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= cSel.id %>" />
+                  <button class="btn btn-danger" type="submit">Sorte löschen</button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+
+        <% } else if (tab==='shops') { %>
+          <h2>Editor</h2>
+          <p class="small-note">Filiale anlegen, bearbeiten, löschen.</p>
+
+          <div id="newShop" class="mt-3">
+            <h3 style="margin:0 0 10px 0;">Neue Filiale</h3>
+            <form method="POST" action="/actions/masters/shop/create">
+              <div class="filterbar">
+                <div class="filter-left">
+                  <input class="input" name="id" placeholder="ID (z.B. CITY)" style="min-width:200px;" />
+                  <input class="input" name="name" placeholder="Name" style="min-width:320px;" />
+                </div>
+                <div class="filter-right">
+                  <button class="btn btn-primary" type="submit">Anlegen</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
+            <h3 style="margin:0 0 10px 0;">Filiale bearbeiten</h3>
+            <% if (!sSel) { %>
+              <div class="small-note">Wähle links eine Filiale aus.</div>
+            <% } else { %>
+              <form method="POST" action="/actions/masters/shop/update">
+                <input type="hidden" name="id" value="<%= sSel.id %>" />
+                <div class="card" style="margin:0;">
+                  <div class="small-note">ID (stabil)</div>
+                  <div class="mono" style="font-weight:950;"><%= sSel.id %></div>
+
+                  <div class="mt-3 small-note">Name</div>
+                  <input class="input" name="name" value="<%= sSel.name %>" />
+
+                  <div class="row mt-3" style="justify-content:space-between;">
+                    <button class="btn btn-primary" type="submit">Speichern</button>
+                    <a class="btn btn-ghost" href="<%= link('shops') %>">Auswahl löschen</a>
+                  </div>
+                </div>
+              </form>
+
+              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
+                <h2>Danger Zone</h2>
+                <div class="small-note">Löschen entfernt Filiale + (wenn du es so eingestellt hast) auch Benutzer.</div>
+                <form method="POST" action="/actions/masters/shop/delete" onsubmit="return confirm('Filiale wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= sSel.id %>" />
+                  <button class="btn btn-danger" type="submit">Filiale löschen</button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+
+        <% } else { %>
+          <h2>Editor</h2>
+          <p class="small-note">B2B Kunde anlegen, bearbeiten, löschen.</p>
+
+          <div id="newB2B" class="mt-3">
+            <h3 style="margin:0 0 10px 0;">Neuer B2B Kunde</h3>
+            <form method="POST" action="/actions/b2b/create">
+              <div style="display:grid; gap:10px;">
+                <input class="input" name="name" placeholder="Name" />
+                <div class="row" style="gap:10px;">
+                  <input class="input" name="email" placeholder="E-Mail" style="flex:1;" />
+                  <input class="input" name="phone" placeholder="Telefon" style="flex:1;" />
+                </div>
+                <input class="input" name="address" placeholder="Adresse" />
+                <input class="input" name="note" placeholder="Notiz" />
+                <button class="btn btn-primary" type="submit">Erstellen</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
+            <h3 style="margin:0 0 10px 0;">B2B bearbeiten</h3>
+            <% if (!bSel) { %>
+              <div class="small-note">Wähle links einen B2B Kunden aus.</div>
+            <% } else { %>
+              <form method="POST" action="/actions/b2b/update">
+                <input type="hidden" name="id" value="<%= bSel.id %>" />
+                <div style="display:grid; gap:10px;">
+                  <input class="input" name="name" value="<%= bSel.name %>" />
+                  <div class="row" style="gap:10px;">
+                    <input class="input" name="email" value="<%= bSel.email %>" style="flex:1;" />
+                    <input class="input" name="phone" value="<%= bSel.phone %>" style="flex:1;" />
+                  </div>
+                  <input class="input" name="address" value="<%= bSel.address %>" />
+                  <input class="input" name="note" value="<%= bSel.note %>" />
+                  <div class="row" style="justify-content:space-between;">
+                    <button class="btn btn-primary" type="submit">Speichern</button>
+                    <a class="btn btn-ghost" href="<%= link('b2b') %>">Auswahl löschen</a>
+                  </div>
+                </div>
+              </form>
+
+              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
+                <h2>Danger Zone</h2>
+                <form method="POST" action="/actions/b2b/delete" onsubmit="return confirm('B2B Kunde wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= bSel.id %>" />
+                  <button class="btn btn-danger" type="submit">B2B Kunde löschen</button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
       </div>
 
-    <% } else { %>
-      <div class="card mt-3">
-        <h2>Hinweis</h2>
-        <p class="small-note">Die Tabs Coffee/Shops/B2B bleiben wie bei dir aktuell. Wenn du willst, baue ich sie als Editor rechts neu (viel schöner).</p>
-      </div>
-    <% } %>
+    </div>
 
+    <div class="small-note mt-3">
+      Seitenhinweis: Alles hier wirkt direkt auf Bestellungen, Produktion und Lager.
+    </div>
   </div>
 </div>
+
+<script>
+  function filterList(listId, q){
+    q = (q || "").toLowerCase().trim();
+    var el = document.getElementById(listId);
+    if(!el) return;
+    var kids = el.querySelectorAll("[data-text]");
+    kids.forEach(function(node){
+      var t = (node.getAttribute("data-text") || "");
+      node.style.display = (!q || t.indexOf(q) >= 0) ? "" : "none";
+    });
+  }
+</script>
