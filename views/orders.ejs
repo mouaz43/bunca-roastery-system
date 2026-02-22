@@ -2,7 +2,10 @@
   var safeOrders = (typeof orders !== "undefined" && orders) ? orders : [];
   var safeShops = (typeof shops !== "undefined" && shops) ? shops : [];
   var safeCoffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
-  var f = (typeof filters !== "undefined" && filters) ? filters : { search:"", status:"ALL", channel:"ALL", shop:"ALL", range:"30" };
+
+  var f = (typeof filters !== "undefined" && filters) ? filters : {
+    search: "", status: "ALL", channel: "ALL", shop: "ALL", range: "30"
+  };
 
   function statusInfo(status){
     var map = {
@@ -11,10 +14,9 @@
       "FREIGEGEBEN": { cls: "badge ok", label: "Freigegeben" },
       "IN_PRODUKTION": { cls: "badge warn", label: "In Produktion" },
       "VERPACKT": { cls: "badge ok", label: "Verpackt" },
-      "AUSGELIEFERT": { cls: "badge", label: "Ausgeliefert" }
+      "AUSGELIEFERT": { cls: "badge info", label: "Ausgeliefert" }
     };
-    if (!status || !map[status]) return { cls: "badge", label: "-" };
-    return map[status];
+    return map[status] || { cls: "badge", label: (status || "-") };
   }
 
   function channelLabel(o){
@@ -31,28 +33,41 @@
 
   function shortId(id){
     if (!id) return "-";
-    return (String(id).length >= 8) ? String(id).slice(0,8) : String(id);
+    var s = String(id);
+    return s.length >= 8 ? s.slice(0,8) : s;
   }
 
   function todayISO(){
     return new Date().toISOString().slice(0,10);
+  }
+
+  function sumKg(items){
+    var total = 0;
+    if (!items || !items.length) return 0;
+    for (var i=0;i<items.length;i++){
+      var n = Number(items[i].kg);
+      if (!isNaN(n)) total += n;
+    }
+    return total;
   }
 %>
 
 <div class="card-grid">
   <div class="card">
     <h2>Bestellungen</h2>
-    <p>Filialen und B2B. Nutzen Sie Filter, um schnell die richtigen Vorgänge zu finden.</p>
+    <p>Erfassen, freigeben, verfolgen. Freigegebene Bestellungen erzeugen Produktionsbedarf.</p>
   </div>
+
   <div class="card">
     <h2>Workflow</h2>
     <p>Eingegangen → Freigegeben → In Produktion → Verpackt → Ausgeliefert</p>
   </div>
 </div>
 
-<div style="margin-top:14px;" class="filterbar">
+<!-- FILTERS -->
+<div class="filterbar">
   <form method="GET" action="/orders" class="filter-left" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-    <input class="input" name="q" value="<%= f.search %>" placeholder="Suche (ID, Notiz, Sorte, Kunde)" />
+    <input class="input" name="q" value="<%= f.search %>" placeholder="Suche (ID, Notiz, Sorte, Kunde)" style="min-width:260px;" />
 
     <select class="select" name="status">
       <option value="ALL" <%= (f.status==="ALL"?"selected":"") %>>Status: Alle</option>
@@ -77,150 +92,197 @@
     </select>
 
     <select class="select" name="range">
-      <option value="7" <%= (f.range==="7"?"selected":"") %>>Zeitraum: 7 Tage</option>
-      <option value="30" <%= (f.range==="30"?"selected":"") %>>30 Tage</option>
-      <option value="90" <%= (f.range==="90"?"selected":"") %>>90 Tage</option>
-      <option value="365" <%= (f.range==="365"?"selected":"") %>>1 Jahr</option>
+      <option value="7" <%= (String(f.range)==="7"?"selected":"") %>>Zeitraum: 7 Tage</option>
+      <option value="30" <%= (String(f.range)==="30"?"selected":"") %>>30 Tage</option>
+      <option value="90" <%= (String(f.range)==="90"?"selected":"") %>>90 Tage</option>
+      <option value="365" <%= (String(f.range)==="365"?"selected":"") %>>1 Jahr</option>
     </select>
 
-    <button class="btn btn-secondary" type="submit">Filtern</button>
-    <a class="btn btn-ghost" href="/orders">Reset</a>
+    <button class="btn btn-sm" type="submit">Filtern</button>
+    <a class="btn btn-sm btn-ghost" href="/orders">Reset</a>
   </form>
 
   <div class="filter-right">
-    <a class="btn btn-primary" href="#new">Neue Bestellung</a>
+    <a class="btn btn-primary" href="#new">
+      <span class="btn-icon" aria-hidden="true"></span>
+      Neue Bestellung
+    </a>
   </div>
 </div>
 
-<div id="new" style="margin-top:14px;" class="card card-wide">
-  <h2>Neue Bestellung</h2>
-  <p>Mindestens eine Position. Lieferdatum bitte auswählen (automatisch korrektes Format).</p>
-
-  <form method="POST" action="/actions/orders/create">
-    <div class="filterbar" style="margin-top:12px;">
-      <div class="filter-left">
-        <select class="select" name="channel">
-          <option value="FILIALE">Kanal: Filiale</option>
-          <option value="B2B">Kanal: B2B</option>
-        </select>
-
-        <select class="select" name="shopId">
-          <option value="">Filiale wählen</option>
-          <% for (var s=0; s<safeShops.length; s++) { %>
-            <option value="<%= safeShops[s].id %>"><%= safeShops[s].name %></option>
-          <% } %>
-        </select>
-
-        <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" />
-        <input class="input" type="date" name="deliveryDate" value="<%= todayISO() %>" />
-      </div>
-
-      <div class="filter-right">
-        <button class="btn btn-secondary" type="reset">Zurücksetzen</button>
-        <button class="btn btn-primary" type="submit">Anlegen</button>
-      </div>
+<!-- NEW ORDER PANEL -->
+<div id="new" class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Neue Bestellung</div>
+      <div class="section-sub">Mindestens eine Position. Lieferdatum bitte auswählen. Filiale oder B2B Kanal.</div>
     </div>
+    <div class="spacer"></div>
+    <a class="btn btn-sm btn-ghost" href="#list">Zur Liste</a>
+  </div>
 
-    <div style="margin-top:12px;" class="table-wrap">
-      <div class="table-head" style="grid-template-columns: 1fr 180px;">
-        <div>Artikel</div>
-        <div>Menge kg</div>
+  <div class="section-body">
+    <form method="POST" action="/actions/orders/create">
+      <div class="filterbar" style="margin-bottom:12px;">
+        <div class="filter-left">
+          <select class="select" name="channel">
+            <option value="FILIALE">Kanal: Filiale</option>
+            <option value="B2B">Kanal: B2B</option>
+          </select>
+
+          <select class="select" name="shopId">
+            <option value="">Filiale wählen</option>
+            <% for (var ss=0; ss<safeShops.length; ss++) { %>
+              <option value="<%= safeShops[ss].id %>"><%= safeShops[ss].name %></option>
+            <% } %>
+          </select>
+
+          <input class="input" name="customerName" placeholder="B2B Kunde (nur bei B2B)" style="min-width:240px;" />
+          <input class="input" type="date" name="deliveryDate" value="<%= todayISO() %>" />
+        </div>
+
+        <div class="filter-right">
+          <button class="btn btn-sm btn-ghost" type="reset">Zurücksetzen</button>
+          <button class="btn btn-primary" type="submit">
+            <span class="btn-icon" aria-hidden="true"></span>
+            Anlegen
+          </button>
+        </div>
       </div>
 
-      <% for (var i=1; i<=4; i++) { %>
-        <div class="table-row" style="grid-template-columns: 1fr 180px;">
-          <div>
-            <select class="select" style="width:100%;" name="item<%= i %>CoffeeId">
-              <option value="">Sorte wählen</option>
-              <% for (var c=0; c<safeCoffees.length; c++) { %>
-                <option value="<%= safeCoffees[c].id %>"><%= safeCoffees[c].name %></option>
-              <% } %>
-            </select>
+      <div class="table-wrap">
+        <div class="table-head" style="grid-template-columns: 1fr 180px;">
+          <div>Artikel</div>
+          <div>Menge kg</div>
+        </div>
+
+        <% for (var i=1; i<=6; i++) { %>
+          <div class="table-row" style="grid-template-columns: 1fr 180px;">
+            <div>
+              <select class="select" style="width:100%;" name="item<%= i %>CoffeeId">
+                <option value="">Sorte wählen</option>
+                <% for (var c=0; c<safeCoffees.length; c++) { %>
+                  <option value="<%= safeCoffees[c].id %>"><%= safeCoffees[c].name %></option>
+                <% } %>
+              </select>
+            </div>
+            <div>
+              <input class="input" name="item<%= i %>Kg" placeholder="z.B. 10" />
+            </div>
           </div>
-          <div><input class="input" style="width:100%;" name="item<%= i %>Kg" placeholder="z.B. 10" /></div>
+        <% } %>
+      </div>
+
+      <div class="mt-3">
+        <input class="input" name="note" placeholder="Notiz (optional) – z.B. Lieferfenster, Verpackung, Hinweise" />
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ORDERS LIST -->
+<div id="list" class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Bestell-Liste</div>
+      <div class="section-sub">Schnellaktionen direkt pro Bestellung. Details unter der Zeile.</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="badge info"><span class="dot"></span><%= safeOrders.length %> Treffer</div>
+  </div>
+
+  <div class="section-body" style="padding:0;">
+    <div class="table-wrap" style="border-radius:0; border-left:none; border-right:none; border-bottom:none;">
+      <div class="table-head" style="grid-template-columns: 110px 110px 1fr 120px 160px 340px;">
+        <div>ID</div>
+        <div>Kanal</div>
+        <div>Ziel</div>
+        <div>Lieferung</div>
+        <div>Status</div>
+        <div class="right">Aktionen</div>
+      </div>
+
+      <% if (!safeOrders.length) { %>
+        <div class="table-row" style="grid-template-columns: 1fr;">
+          <div class="card" style="margin:14px;">
+            <h2>Keine Bestellungen</h2>
+            <p>Es gibt aktuell keine Bestellungen in diesem Filter. Legen Sie oben eine neue Bestellung an.</p>
+            <div class="row" style="margin-top:12px;">
+              <a class="btn btn-primary" href="#new"><span class="btn-icon"></span>Neue Bestellung</a>
+              <a class="btn btn-ghost" href="/orders">Filter zurücksetzen</a>
+            </div>
+          </div>
+        </div>
+      <% } %>
+
+      <% for (var i=0; i<safeOrders.length; i++) {
+          var o = safeOrders[i];
+          var s = statusInfo(o.status);
+          var total = sumKg(o.items);
+      %>
+        <div class="table-row" style="grid-template-columns: 110px 110px 1fr 120px 160px 340px;">
+          <div class="mono"><%= shortId(o.id) %></div>
+          <div><%= channelLabel(o) %></div>
+          <div>
+            <div style="font-weight:950;"><%= targetLabel(o) %></div>
+            <div class="small-note"><%= (o.items && o.items.length) ? (o.items.length + " Positionen · " + total + " kg") : "Keine Positionen" %></div>
+          </div>
+          <div class="mono"><%= o.deliveryDate ? o.deliveryDate : "-" %></div>
+          <div><span class="<%= s.cls %>"><span class="dot"></span><%= s.label %></span></div>
+
+          <div class="row-actions">
+            <form method="POST" action="/actions/orders/<%= o.id %>/approve">
+              <button class="btn btn-sm" type="submit">Freigeben</button>
+            </form>
+
+            <form method="POST" action="/actions/orders/<%= o.id %>/advance">
+              <button class="btn btn-sm btn-primary" type="submit">
+                <span class="btn-icon" aria-hidden="true"></span>
+                Weiter
+              </button>
+            </form>
+
+            <form method="POST" action="/actions/orders/<%= o.id %>/deliver" onsubmit="return confirm('Auslieferung buchen? Röstkaffee wird abgezogen.');">
+              <button class="btn btn-sm" type="submit">Ausliefern</button>
+            </form>
+
+            <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
+              <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="table-row" style="grid-template-columns: 1fr;">
+          <div style="padding:0 14px 12px;">
+            <div class="card" style="margin-top:10px;">
+              <div class="row">
+                <div style="font-weight:950;">Details</div>
+                <div class="spacer"></div>
+                <a class="btn btn-sm btn-ghost" href="/production">Produktion</a>
+                <a class="btn btn-sm btn-ghost" href="/inventory">Lager</a>
+                <a class="btn btn-sm btn-ghost" href="/activity">Aktivität</a>
+              </div>
+
+              <div class="mt-3">
+                <div class="small-note"><strong>Notiz:</strong> <%= o.note ? o.note : "-" %></div>
+              </div>
+
+              <div class="mt-3">
+                <div class="small-note"><strong>Positionen:</strong></div>
+                <% if (o.items && o.items.length) { %>
+                  <div class="mt-2" style="display:grid; gap:6px;">
+                    <% for (var k=0; k<o.items.length; k++) { %>
+                      <div class="small-note"><%= o.items[k].coffeeName %> — <strong><%= o.items[k].kg %> kg</strong></div>
+                    <% } %>
+                  </div>
+                <% } else { %>
+                  <div class="small-note">Keine Positionen</div>
+                <% } %>
+              </div>
+            </div>
+          </div>
         </div>
       <% } %>
     </div>
-
-    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-      <input class="input" style="flex:1; min-width:260px;" name="note" placeholder="Notiz (optional)" />
-    </div>
-  </form>
-</div>
-
-<div style="margin-top:14px;" class="table-wrap">
-  <div class="table-head">
-    <div>ID</div>
-    <div>Kanal</div>
-    <div>Kunde Filiale</div>
-    <div>Lieferdatum</div>
-    <div>Status</div>
-    <div>Aktionen</div>
   </div>
-
-  <% if (!safeOrders.length) { %>
-    <div class="table-row">
-      <div class="mono">-</div>
-      <div>-</div>
-      <div>Keine Bestellungen (Filter prüfen)</div>
-      <div>-</div>
-      <div><span class="badge"><span class="dot"></span>Info</span></div>
-      <div class="row-actions">
-        <a class="btn btn-primary" href="#new">Neue Bestellung</a>
-      </div>
-    </div>
-  <% } %>
-
-  <% for (var i=0; i<safeOrders.length; i++) {
-      var o = safeOrders[i];
-      var s = statusInfo(o.status);
-  %>
-    <div class="table-row">
-      <div class="mono"><%= shortId(o.id) %></div>
-      <div><%= channelLabel(o) %></div>
-      <div><%= targetLabel(o) %></div>
-      <div><%= o.deliveryDate ? o.deliveryDate : "-" %></div>
-      <div><span class="<%= s.cls %>"><span class="dot"></span><%= s.label %></span></div>
-      <div class="row-actions">
-        <form method="POST" action="/actions/orders/<%= o.id %>/advance">
-          <button class="btn btn-primary" type="submit">Weiter</button>
-        </form>
-
-        <form method="POST" action="/actions/orders/<%= o.id %>/approve">
-          <button class="btn btn-secondary" type="submit">Freigeben</button>
-        </form>
-
-        <form method="POST" action="/actions/orders/<%= o.id %>/deliver" onsubmit="return confirm('Auslieferung buchen? Röstkaffee wird abgezogen.');">
-          <button class="btn btn-secondary" type="submit">Ausliefern</button>
-        </form>
-
-        <form method="POST" action="/actions/orders/<%= o.id %>/delete" onsubmit="return confirm('Bestellung wirklich löschen?');">
-          <button class="btn btn-danger" type="submit">Löschen</button>
-        </form>
-      </div>
-    </div>
-
-    <div class="table-row" style="grid-template-columns: 1fr;">
-      <div>
-        <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-          <div>
-            <div class="small-note">Positionen</div>
-            <% if (o.items && o.items.length) { %>
-              <% for (var k=0; k<o.items.length; k++) { %>
-                <div class="small-note"><%= o.items[k].coffeeName %> — <%= o.items[k].kg %> kg</div>
-              <% } %>
-            <% } else { %>
-              <div class="small-note">Keine Positionen</div>
-            <% } %>
-          </div>
-
-          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
-            <a class="btn btn-ghost" href="/production">Produktion</a>
-            <a class="btn btn-ghost" href="/inventory">Lager</a>
-            <a class="btn btn-ghost" href="/activity">Aktivität</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  <% } %>
 </div>
