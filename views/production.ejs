@@ -1,289 +1,346 @@
 <%
-  var inventory = (typeof inventory !== "undefined" && inventory) ? inventory : { greenBeansKg:{}, roastedKg:{}, updatedAt:"" };
+  var inventory = (typeof inventory !== "undefined" && inventory) ? inventory : null;
   var roastDemand = (typeof roastDemand !== "undefined" && roastDemand) ? roastDemand : [];
   var batches = (typeof batches !== "undefined" && batches) ? batches : [];
 
-  var q = (typeof query !== "undefined" && query) ? query : {};
-  // allow selection via query params if you later pass them; also supports manual URL ?batch=...
-  var selectedBatchId = (q && q.batch) ? String(q.batch) : "";
-  // fallback: parse from location if not passed
+  var queryObj = (typeof query !== "undefined" && query) ? query : (typeof query !== "undefined" ? query : null);
+  var roastOk = (queryObj && queryObj.roast_ok) ? String(queryObj.roast_ok) : "";
+  var roastError = (queryObj && queryObj.roast_error) ? String(queryObj.roast_error) : "";
+  var batchId = (queryObj && queryObj.batch_id) ? String(queryObj.batch_id) : "";
+
+  // If your controller passes coffees, use it; otherwise fallback to inventory keys
+  var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
+  if (!coffees.length && inventory && inventory.greenBeansKg) {
+    coffees = Object.keys(inventory.greenBeansKg).map(id => ({ id, name: id, packDefaultKg: 1 }));
+  }
+
+  function num(v){
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+  function fmt1(n){
+    var v = num(n);
+    return (Math.round(v*10)/10).toFixed(1);
+  }
+  function fmtTs(iso){
+    try { return String(iso).slice(0,19).replace("T"," "); } catch(e){ return String(iso||""); }
+  }
 %>
 
-<%
-  function byId(list, id){
-    id = String(id || "");
-    for (var i=0;i<list.length;i++) if (String(list[i].id)===id) return list[i];
-    return null;
+<style>
+  .prod-shell{ display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:1100px){ .prod-shell{ grid-template-columns: 1.05fr .95fr; } }
+
+  .notice{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.70);
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    justify-content:space-between;
+    flex-wrap:wrap;
   }
-  var selectedBatch = selectedBatchId ? byId(batches, selectedBatchId) : null;
+  .notice h3{ margin:0; font-size:14px; font-weight:950; }
+  .notice p{ margin:6px 0 0; font-size:13px; opacity:.8; }
+  .notice.ok{ border-color: rgba(38,201,122,.30); background: rgba(38,201,122,.06); }
+  .notice.err{ border-color: rgba(255,77,77,.30); background: rgba(255,77,77,.06); }
 
-  function sumKg(map){
-    var t = 0;
-    for (var k in (map||{})) t += Number(map[k]||0);
-    return t;
+  .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 12px; border-radius:999px;
+    border:1px solid rgba(0,0,0,.08);
+    background: rgba(255,255,255,.55);
+    font-weight:900; font-size:12px;
+    white-space:nowrap;
   }
+  .pill .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
+  .pill.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
+  .pill.ok .dot{ background: rgba(38,201,122,.9); }
+  .pill.warn{ border-color: rgba(255,168,0,.35); background: rgba(255,168,0,.10); }
+  .pill.warn .dot{ background: rgba(255,168,0,.95); }
 
-  function fmtKg(n){
-    n = Number(n||0);
-    return (Math.round(n*10)/10).toFixed(1);
+  .kpi-grid{ display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0,1fr)); }
+  @media (min-width:800px){ .kpi-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
+  .kpi{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.65);
   }
+  .kpi .k{ font-size:12px; opacity:.75; font-weight:900; }
+  .kpi .v{ margin-top:6px; font-weight:950; font-size:18px; }
 
-  function badgeClass(st){
-    if (st === "GEPLANT") return "badge";
-    if (st === "GEROESTET") return "badge ok";
-    if (st === "ABGEKUEHLT") return "badge";
-    if (st === "VERPACKT") return "badge";
-    if (st === "BEREIT") return "badge ok";
-    if (st === "AUSGELIEFERT") return "badge";
-    return "badge";
+  .panel{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:14px;
+    background: rgba(255,255,255,.65);
   }
+  .panel h3{ margin:0; font-weight:950; font-size:16px; }
+  .panel p{ margin:8px 0 0; font-size:13px; opacity:.75; }
 
-  // build a coffee option list from demand + batches (no extra controller changes needed)
-  var coffeeMap = {};
-  for (var d=0; d<roastDemand.length; d++){
-    coffeeMap[String(roastDemand[d].coffeeId)] = String(roastDemand[d].coffeeName || roastDemand[d].coffeeId);
+  .form{ margin-top:12px; display:grid; gap:10px; }
+  .row2{ display:grid; grid-template-columns:1fr 170px; gap:10px; }
+  .row3{ display:grid; grid-template-columns:1fr 170px 170px; gap:10px; }
+  @media (max-width:800px){ .row3{ grid-template-columns:1fr; } }
+  @media (max-width:700px){ .row2{ grid-template-columns:1fr; } }
+  .label{ font-size:12px; opacity:.75; font-weight:900; margin-bottom:6px; }
+  .inputBig{ height:46px; border-radius:16px; }
+
+  details.fold{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.55);
   }
-  for (var b=0; b<batches.length; b++){
-    coffeeMap[String(batches[b].coffeeId)] = String(batches[b].coffeeName || batches[b].coffeeId);
+  details.fold summary{
+    cursor:pointer;
+    font-weight:950;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
   }
-  // convert to array sorted by name
-  var coffeeOptions = [];
-  for (var cid in coffeeMap) coffeeOptions.push({ id: cid, name: coffeeMap[cid] });
-  coffeeOptions.sort(function(a,b){ return a.name.localeCompare(b.name); });
+  details.fold summary::-webkit-details-marker{ display:none; }
 
-  // inventory lists
-  var greenTotal = sumKg(inventory.greenBeansKg);
-  var roastedTotal = sumKg(inventory.roastedKg);
+  .list{ display:grid; gap:10px; }
+  .item{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;
+    padding:12px;
+    background: rgba(255,255,255,.60);
+  }
+  .item-top{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .item-title{ font-weight:950; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  .sub{ margin-top:4px; font-size:12px; opacity:.75; }
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+</style>
 
-  // demand totals
-  var demandTotal = 0;
-  for (var x=0;x<roastDemand.length;x++) demandTotal += Number(roastDemand[x].kg || 0);
-
-%>
-
-<div class="card-grid" style="grid-template-columns: 420px 1fr; align-items:start;">
-
-  <!-- LEFT PANEL -->
-  <div class="card">
-    <h2>Produktion</h2>
-    <p class="small-note">Bedarf aus freigegebenen Bestellungen, Chargen planen und Status weiterführen.</p>
-
-    <div class="card mt-3">
-      <div class="row" style="justify-content:space-between;">
-        <div>
-          <div class="small-note">Inventar (Snapshot)</div>
-          <div style="font-weight:950;">Rohkaffee: <span class="mono"><%= fmtKg(greenTotal) %> kg</span> · Röstkaffee: <span class="mono"><%= fmtKg(roastedTotal) %> kg</span></div>
-        </div>
-        <span class="badge ok"><span class="dot"></span>Live</span>
-      </div>
-      <div class="small-note mt-2">Update: <span class="mono"><%= (inventory.updatedAt || "").slice(0,19).replace("T"," ") %></span></div>
+<% if (roastOk) { %>
+  <div class="notice ok">
+    <div>
+      <h3>Röstung gespeichert</h3>
+      <p><%= roastOk %></p>
+      <% if (batchId) { %>
+        <p class="mono" style="margin-top:8px; opacity:.75;">Charge-ID: <%= batchId %></p>
+      <% } %>
     </div>
 
-    <div class="card mt-3">
-      <div class="row" style="justify-content:space-between;">
-        <div>
-          <h2 style="margin:0;">Roast Demand</h2>
-          <div class="small-note">Summe: <span class="mono"><%= fmtKg(demandTotal) %> kg</span></div>
-        </div>
-        <a class="btn btn-sm btn-ghost" href="#createBatch">Charge anlegen</a>
-      </div>
+    <% if (batchId) { %>
+      <a class="btn btn-primary" style="height:46px; border-radius:18px; display:inline-flex; align-items:center;"
+         target="_blank" rel="noopener"
+         href="/production/batches/<%= batchId %>/pdf">
+        Röstprotokoll PDF
+      </a>
+    <% } %>
+  </div>
+<% } %>
 
-      <div class="table-wrap mt-3">
-        <div class="table-head" style="grid-template-columns: 1fr 140px 120px;">
-          <div>Sorte</div>
-          <div class="right">Bedarf (kg)</div>
-          <div class="right">Aktion</div>
-        </div>
-
-        <% if (!roastDemand.length) { %>
-          <div class="table-row" style="grid-template-columns: 1fr;">
-            <div class="small-note">Kein Bedarf (noch nichts freigegeben / in Produktion).</div>
-          </div>
-        <% } %>
-
-        <% for (var i=0;i<roastDemand.length;i++) { 
-             var d = roastDemand[i];
-             var green = Number(inventory.greenBeansKg[d.coffeeId] || 0);
-             var roasted = Number(inventory.roastedKg[d.coffeeId] || 0);
-        %>
-          <div class="table-row" style="grid-template-columns: 1fr 140px 120px;">
-            <div style="font-weight:950;">
-              <%= d.coffeeName %>
-              <div class="small-note mono"><%= d.coffeeId %> · Roh <%= fmtKg(green) %> · Röst <%= fmtKg(roasted) %></div>
-            </div>
-            <div class="right mono"><%= fmtKg(d.kg) %></div>
-            <div class="right">
-              <button class="btn btn-sm btn-ghost" type="button"
-                onclick="prefillBatch('<%= String(d.coffeeId).replace(/'/g,'') %>','<%= String(d.coffeeName).replace(/'/g,'') %>','<%= fmtKg(d.kg) %>')">
-                Planen
-              </button>
-            </div>
-          </div>
-        <% } %>
-      </div>
-    </div>
-
-    <div class="card mt-3">
-      <div class="row" style="justify-content:space-between;">
-        <div>
-          <h2 style="margin:0;">Chargen</h2>
-          <div class="small-note">Klicken zum Öffnen. Neueste oben.</div>
-        </div>
-      </div>
-
-      <div class="mt-3" style="display:grid; gap:8px;">
-        <% if (!batches.length) { %>
-          <div class="small-note">Noch keine Chargen.</div>
-        <% } %>
-
-        <% for (var b=0;b<batches.length;b++) { 
-             var it = batches[b];
-             var isSel = selectedBatch && String(selectedBatch.id)===String(it.id);
-        %>
-          <a class="nav-item <%= isSel ? 'active' : '' %>"
-             style="text-decoration:none;"
-             href="/production?batch=<%= encodeURIComponent(it.id) %>">
-            <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
-              <div class="row" style="justify-content:space-between;">
-                <div style="font-weight:950;"><%= it.coffeeName %></div>
-                <span class="<%= badgeClass(it.status) %>"><span class="dot"></span><%= it.status %></span>
-              </div>
-              <div class="small-note mono"><%= fmtKg(it.kg) %> kg · <%= it.id %></div>
-            </div>
-          </a>
-        <% } %>
-      </div>
+<% if (roastError) { %>
+  <div class="notice err">
+    <div>
+      <h3>Fehler beim Rösten</h3>
+      <p><%= roastError %></p>
     </div>
   </div>
+<% } %>
 
-  <!-- RIGHT PANEL -->
+<div class="prod-shell">
+
+  <!-- LEFT: Roast action + quick overview -->
   <div class="card">
-    <h2>Batch Editor</h2>
-    <p class="small-note">Eine Charge bewegt Bestände: bei “GEROESTET” wird Rohkaffee → Röstkaffee gebucht.</p>
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h2 style="margin:0;">Produktion</h2>
+        <div class="small-note">Einfacher Ablauf: Bedarf ansehen → Rösten → PDF → Lager aktualisiert.</div>
+      </div>
+      <span class="pill ok"><span class="dot"></span>Admin</span>
+    </div>
 
-    <!-- Create -->
-    <div id="createBatch" class="card mt-3">
-      <h2>Neue Charge</h2>
-      <form method="POST" action="/actions/batches/create" class="mt-3">
-        <div style="display:grid; gap:10px;">
-          <div class="row" style="gap:10px;">
-            <select class="select" id="coffeePick" style="flex:1;" onchange="syncCoffeeFromPick()">
-              <option value="">Sorte wählen</option>
-              <% for (var c=0;c<coffeeOptions.length;c++) { %>
-                <option value="<%= coffeeOptions[c].id %>"><%= coffeeOptions[c].name %> (<%= coffeeOptions[c].id %>)</option>
+    <div class="kpi-grid mt-3">
+      <div class="kpi">
+        <div class="k">Freigegeben/Offen</div>
+        <div class="v"><%= roastDemand.length %></div>
+      </div>
+      <div class="kpi">
+        <div class="k">Chargen</div>
+        <div class="v"><%= batches.length %></div>
+      </div>
+      <div class="kpi">
+        <div class="k">Rohkaffee Sorten</div>
+        <div class="v"><%= coffees.length %></div>
+      </div>
+      <div class="kpi">
+        <div class="k">Heute</div>
+        <div class="v"><span class="mono"><%= fmtTs(new Date().toISOString()) %></span></div>
+      </div>
+    </div>
+
+    <div class="panel mt-3">
+      <h3>Rösten (Roh → Röst)</h3>
+      <p>3 Felder. Default Yield ist 85%. Lager wird automatisch aktualisiert und ein PDF wird druckbar.</p>
+
+      <form class="form" method="POST" action="/actions/roast/create">
+        <div class="row3">
+          <div>
+            <div class="label">Sorte</div>
+            <select class="select inputBig" name="coffeeId" id="coffeeId" required>
+              <option value="">Bitte wählen</option>
+              <% for (var i=0;i<coffees.length;i++) { %>
+                <option value="<%= coffees[i].id %>"><%= coffees[i].name %> (<%= coffees[i].id %>)</option>
               <% } %>
             </select>
-
-            <input class="input" id="kg" name="kg" placeholder="kg" style="width:140px;" />
+            <div class="small-note" id="stockHint" style="margin-top:6px; opacity:.75;"></div>
           </div>
 
-          <input class="input" id="coffeeId" name="coffeeId" placeholder="coffeeId (z.B. ESPRESSO)" />
-          <input class="input" id="coffeeName" name="coffeeName" placeholder="coffeeName (z.B. Espresso Blend)" />
-
-          <div class="row" style="gap:10px;">
-            <select class="select" name="status" style="flex:1;">
-              <option value="GEPLANT">GEPLANT</option>
-              <option value="GEROESTET">GEROESTET</option>
-              <option value="ABGEKUEHLT">ABGEKUEHLT</option>
-              <option value="VERPACKT">VERPACKT</option>
-              <option value="BEREIT">BEREIT</option>
-              <option value="AUSGELIEFERT">AUSGELIEFERT</option>
-            </select>
-            <input class="input" name="note" placeholder="Notiz (optional)" style="flex:1;" />
+          <div>
+            <div class="label">Roh kg</div>
+            <input class="input inputBig" name="greenKg" id="greenKg" type="number" step="0.1" min="0" placeholder="z.B. 20" required />
           </div>
 
-          <button class="btn btn-primary" type="submit">Charge erstellen</button>
-
-          <div class="small-note">
-            Pro Tipp: “Planen” im Bedarf setzt Sorte und kg automatisch.
+          <div>
+            <div class="label">Yield %</div>
+            <input class="input inputBig" name="yieldPct" id="yieldPct" type="number" step="1" min="50" max="100" value="85" required />
           </div>
+        </div>
+
+        <div class="row2">
+          <div>
+            <div class="label">Notiz (optional)</div>
+            <input class="input inputBig" name="note" placeholder="z.B. Profil / Röster / Besonderheiten" />
+          </div>
+
+          <div>
+            <div class="label">Erwartet (Röst kg)</div>
+            <input class="input inputBig" id="expectedRoasted" type="text" value="-" readonly />
+          </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit" style="height:46px; border-radius:18px;">Röstung speichern</button>
+
+        <div class="small-note" style="margin-top:8px;">
+          Hinweis: Wenn nicht genug Rohkaffee vorhanden ist, blockiert das System die Röstung.
         </div>
       </form>
     </div>
 
-    <!-- Selected batch -->
-    <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
-      <h2>Ausgewählte Charge</h2>
+    <details class="fold mt-3" open>
+      <summary>
+        <span>Bedarf (aus freigegebenen Bestellungen)</span>
+        <span style="opacity:.6;">▼</span>
+      </summary>
 
-      <% if (!selectedBatch) { %>
-        <div class="small-note">Wähle links eine Charge aus, um sie zu steuern.</div>
-      <% } else { %>
-        <div class="card mt-3">
-          <div class="row" style="justify-content:space-between;">
-            <div>
-              <div style="font-weight:950;"><%= selectedBatch.coffeeName %></div>
-              <div class="small-note mono"><%= selectedBatch.coffeeId %> · <%= fmtKg(selectedBatch.kg) %> kg</div>
+      <div class="list mt-3">
+        <% if (!roastDemand.length) { %>
+          <div class="small-note">Kein aktueller Bedarf (Freigabe fehlt oder alles erledigt).</div>
+        <% } %>
+
+        <% for (var d=0; d<roastDemand.length; d++) { %>
+          <div class="item">
+            <div class="item-top">
+              <div>
+                <div class="item-title"><%= roastDemand[d].coffeeName %></div>
+                <div class="sub mono"><%= roastDemand[d].coffeeId %></div>
+              </div>
+              <span class="pill warn"><span class="dot"></span>Bedarf: <span class="mono"><%= fmt1(roastDemand[d].kg) %></span> kg</span>
             </div>
-            <span class="<%= badgeClass(selectedBatch.status) %>"><span class="dot"></span><%= selectedBatch.status %></span>
-          </div>
-
-          <% if (selectedBatch.note) { %>
-            <div class="small-note mt-2">Notiz: <%= selectedBatch.note %></div>
-          <% } %>
-
-          <div class="small-note mt-2">Erstellt: <span class="mono"><%= (selectedBatch.createdAt || "").slice(0,19).replace("T"," ") %></span></div>
-
-          <div class="row mt-3" style="gap:10px; flex-wrap:wrap;">
-            <form method="POST" action="/actions/batches/<%= selectedBatch.id %>/advance">
-              <button class="btn btn-primary" type="submit">Nächster Status</button>
-            </form>
-
-            <form method="POST" action="/actions/batches/<%= selectedBatch.id %>/delete"
-                  onsubmit="return confirm('Charge wirklich löschen?');">
-              <button class="btn btn-danger" type="submit">Löschen</button>
-            </form>
-
-            <a class="btn btn-ghost" href="/production">Auswahl löschen</a>
-          </div>
-
-          <div class="card mt-3">
-            <h2>Inventar Check</h2>
-            <div class="small-note">
-              Rohkaffee (<span class="mono"><%= selectedBatch.coffeeId %></span>):
-              <span class="mono"><%= fmtKg(inventory.greenBeansKg[selectedBatch.coffeeId] || 0) %> kg</span><br/>
-              Röstkaffee (<span class="mono"><%= selectedBatch.coffeeId %></span>):
-              <span class="mono"><%= fmtKg(inventory.roastedKg[selectedBatch.coffeeId] || 0) %> kg</span>
-            </div>
-            <div class="small-note mt-2">
-              Bei “GEROESTET” wird Rohkaffee um <span class="mono"><%= fmtKg(selectedBatch.kg) %></span> reduziert
-              und Röstkaffee um <span class="mono"><%= fmtKg(selectedBatch.kg) %></span> erhöht.
+            <div class="small-note" style="margin-top:8px;">
+              Tipp: Röste in sinnvollen Chargen (z.B. 5–15kg), statt alles auf einmal.
             </div>
           </div>
-        </div>
-      <% } %>
+        <% } %>
+      </div>
+    </details>
+  </div>
+
+  <!-- RIGHT: Recent batches + quick PDF access -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h2 style="margin:0;">Chargen</h2>
+        <div class="small-note">Letzte Röstungen. PDF jederzeit druckbar.</div>
+      </div>
+      <span class="pill"><span class="dot"></span><%= batches.length %> total</span>
     </div>
 
-    <div class="small-note mt-3">
-      Seitenhinweis: Freigegebene Bestellungen erzeugen Bedarf. Chargen bewegen Lager. Auslieferung reduziert Röstkaffee.
+    <div class="list mt-3">
+      <% if (!batches.length) { %>
+        <div class="small-note">Noch keine Chargen vorhanden.</div>
+      <% } %>
+
+      <% for (var b=0;b<batches.length;b++) { %>
+        <div class="item">
+          <div class="item-top">
+            <div>
+              <div class="item-title"><%= batches[b].coffeeName %></div>
+              <div class="sub mono"><%= batches[b].coffeeId %> · <%= fmtTs(batches[b].createdAt) %></div>
+            </div>
+
+            <span class="pill ok"><span class="dot"></span><span class="mono"><%= fmt1(batches[b].kg) %></span> kg</span>
+          </div>
+
+          <% if (batches[b].note) { %>
+            <div class="small-note" style="margin-top:8px;"><%= batches[b].note %></div>
+          <% } %>
+
+          <div class="actions mt-3">
+            <a class="btn btn-ghost" style="height:46px; border-radius:18px; display:inline-flex; align-items:center;"
+               target="_blank" rel="noopener"
+               href="/production/batches/<%= batches[b].id %>/pdf">
+              PDF
+            </a>
+          </div>
+
+          <div class="small-note mono" style="opacity:.6; margin-top:10px;"><%= batches[b].id %></div>
+        </div>
+      <% } %>
     </div>
   </div>
 
 </div>
 
 <script>
-  function prefillBatch(coffeeId, coffeeName, kg){
-    const pick = document.getElementById("coffeePick");
-    const id = document.getElementById("coffeeId");
-    const name = document.getElementById("coffeeName");
-    const kgInput = document.getElementById("kg");
-    if (pick) pick.value = coffeeId || "";
-    if (id) id.value = coffeeId || "";
-    if (name) name.value = coffeeName || "";
-    if (kgInput) kgInput.value = kg || "";
-    location.hash = "#createBatch";
+  const inv = <%- JSON.stringify(inventory || {}) %>;
+  const coffees = <%- JSON.stringify(coffees || []) %>;
+
+  const coffeeSel = document.getElementById("coffeeId");
+  const greenKg = document.getElementById("greenKg");
+  const yieldPct = document.getElementById("yieldPct");
+  const expected = document.getElementById("expectedRoasted");
+  const hint = document.getElementById("stockHint");
+
+  function n(v){
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
+  function f1(x){
+    return (Math.round(n(x)*10)/10).toFixed(1);
   }
 
-  function syncCoffeeFromPick(){
-    const pick = document.getElementById("coffeePick");
-    const id = document.getElementById("coffeeId");
-    const name = document.getElementById("coffeeName");
-    if (!pick || !id || !name) return;
-    const val = pick.value || "";
-    id.value = val;
-
-    const txt = pick.options[pick.selectedIndex] ? pick.options[pick.selectedIndex].textContent : "";
-    // "Name (ID)" -> Name
-    const m = txt.match(/^(.*)\s+\([^)]+\)\s*$/);
-    name.value = m ? m[1] : (txt || val);
+  function updateExpected(){
+    const g = n(greenKg?.value);
+    const y = n(yieldPct?.value) || 85;
+    const r = (g * y) / 100;
+    if (expected) expected.value = (g > 0 ? (f1(r) + " kg") : "-");
   }
+
+  function updateHint(){
+    const id = coffeeSel?.value || "";
+    if (!id || !hint) { if (hint) hint.textContent = ""; return; }
+    const green = n(inv.greenBeansKg && inv.greenBeansKg[id]);
+    const roasted = n(inv.roastedKg && inv.roastedKg[id]);
+
+    hint.textContent = `Aktuell: Roh ${f1(green)} kg · Röst ${f1(roasted)} kg`;
+  }
+
+  if (coffeeSel) coffeeSel.addEventListener("change", () => { updateHint(); });
+  if (greenKg) greenKg.addEventListener("input", updateExpected);
+  if (yieldPct) yieldPct.addEventListener("input", updateExpected);
+
+  updateHint();
+  updateExpected();
 </script>
