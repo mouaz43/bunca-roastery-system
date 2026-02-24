@@ -34,6 +34,16 @@ function canViewOrder(req, order) {
   return false;
 }
 
+function pdfHeader(doc, title) {
+  doc.font("Helvetica-Bold").fontSize(18).text("Bunca Rösterei", { continued: true });
+  doc.font("Helvetica").fontSize(10).text("  Produktions- & Bestellsystem");
+  doc.moveDown(0.6);
+
+  doc.font("Helvetica-Bold").fontSize(16).text(title);
+  doc.moveDown(0.4);
+  doc.font("Helvetica").fontSize(10).fillColor("#333");
+}
+
 exports.orderPdf = async (req, res) => {
   const orderId = req.params.id;
   const order = await store.getOrderById(orderId);
@@ -50,14 +60,8 @@ exports.orderPdf = async (req, res) => {
   res.setHeader("Content-Disposition", `inline; filename="bestellung-${order.id}.pdf"`);
   doc.pipe(res);
 
-  doc.font("Helvetica-Bold").fontSize(18).text("Bunca Rösterei", { continued: true });
-  doc.font("Helvetica").fontSize(10).text("  Produktions- & Bestellsystem");
-  doc.moveDown(0.6);
+  pdfHeader(doc, title);
 
-  doc.font("Helvetica-Bold").fontSize(16).text(title);
-  doc.moveDown(0.4);
-
-  doc.font("Helvetica").fontSize(10).fillColor("#333");
   doc.text(`Bestell-ID: ${order.id}`);
   doc.text(`Kanal: ${channelLabel(order.channel)}`);
   doc.text(`Status: ${statusLabel(order.status)}`);
@@ -117,6 +121,85 @@ exports.orderPdf = async (req, res) => {
   doc.end();
 };
 
+exports.lieferscheinPdf = async (req, res) => {
+  const orderId = req.params.id;
+  const order = await store.getOrderById(orderId);
+  if (!order) return res.status(404).send("Bestellung nicht gefunden.");
+  if (!canViewOrder(req, order)) return res.status(403).send("Keine Berechtigung.");
+
+  const who =
+    order.channel === "B2B"
+      ? (order.customerName || "B2B Kunde")
+      : `${getShopName(order.shopId)} (${order.shopId || "-"})`;
+
+  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="lieferschein-${order.id}.pdf"`);
+  doc.pipe(res);
+
+  pdfHeader(doc, "Lieferschein");
+
+  doc.text(`Lieferschein zu Bestellung: ${order.id}`);
+  doc.text(`Kanal: ${channelLabel(order.channel)}`);
+  doc.text(`Empfänger: ${who}`);
+  doc.text(`Lieferdatum: ${fmtDate(order.deliveryDate)}`);
+  doc.text(`Status: ${statusLabel(order.status)}`);
+  doc.text(`Gedruckt: ${fmtDateTime(new Date().toISOString())}`);
+
+  if (order.note) {
+    doc.moveDown(0.2);
+    doc.font("Helvetica-Bold").text("Hinweis/Notiz:");
+    doc.font("Helvetica").text(order.note);
+  }
+
+  doc.moveDown(1);
+  doc.font("Helvetica-Bold").fontSize(12).text("Gelieferte Positionen");
+  doc.moveDown(0.4);
+
+  const x1 = doc.x;
+  const xCoffee = x1;
+  const xKg = 460;
+  let y = doc.y;
+
+  doc.font("Helvetica-Bold").fontSize(10);
+  doc.text("Sorte", xCoffee, y);
+  doc.text("kg", xKg, y, { width: 60, align: "right" });
+  y += 16;
+  doc.moveTo(x1, y).lineTo(555, y).strokeColor("#cccccc").stroke();
+  y += 10;
+
+  doc.font("Helvetica").fontSize(10).fillColor("#111");
+
+  let total = 0;
+  for (const it of (order.items || [])) {
+    const name = it.coffeeName || it.coffeeId || "-";
+    const kg = num(it.kg);
+    total += kg;
+
+    if (y > 740) { doc.addPage(); y = doc.y; }
+    doc.text(name, xCoffee, y, { width: 420 });
+    doc.text(kg.toFixed(1), xKg, y, { width: 60, align: "right" });
+    y += 18;
+  }
+
+  doc.moveDown(1);
+  doc.strokeColor("#cccccc");
+  doc.moveTo(x1, y).lineTo(555, y).stroke();
+  y += 10;
+
+  doc.font("Helvetica-Bold").fontSize(11);
+  doc.text("Gesamt", xCoffee, y);
+  doc.text(total.toFixed(1) + " kg", xKg, y, { width: 60, align: "right" });
+
+  doc.moveDown(2);
+  doc.fillColor("#666").font("Helvetica").fontSize(10);
+  doc.text("Unterschrift Empfänger:", 40, doc.y);
+  doc.moveDown(2);
+  doc.strokeColor("#999999").moveTo(40, doc.y).lineTo(260, doc.y).stroke();
+
+  doc.end();
+};
+
 exports.receiptPdf = async (req, res) => {
   const id = req.params.id;
   const r = await receipts.getReceiptById(id);
@@ -127,14 +210,8 @@ exports.receiptPdf = async (req, res) => {
   res.setHeader("Content-Disposition", `inline; filename="wareneingang-${r.id}.pdf"`);
   doc.pipe(res);
 
-  doc.font("Helvetica-Bold").fontSize(18).text("Bunca Rösterei", { continued: true });
-  doc.font("Helvetica").fontSize(10).text("  Produktions- & Bestellsystem");
-  doc.moveDown(0.6);
+  pdfHeader(doc, "Wareneingang (Rohkaffee)");
 
-  doc.font("Helvetica-Bold").fontSize(16).text("Wareneingang (Rohkaffee)");
-  doc.moveDown(0.4);
-
-  doc.font("Helvetica").fontSize(10).fillColor("#333");
   doc.text(`Beleg-ID: ${r.id}`);
   doc.text(`Zeit: ${fmtDateTime(r.at)}`);
   doc.text(`Sorte: ${r.coffeeName} (${r.coffeeId})`);
@@ -175,14 +252,8 @@ exports.roastPdf = async (req, res) => {
   res.setHeader("Content-Disposition", `inline; filename="roestprotokoll-${b.id}.pdf"`);
   doc.pipe(res);
 
-  doc.font("Helvetica-Bold").fontSize(18).text("Bunca Rösterei", { continued: true });
-  doc.font("Helvetica").fontSize(10).text("  Produktions- & Bestellsystem");
-  doc.moveDown(0.6);
+  pdfHeader(doc, "Röstprotokoll");
 
-  doc.font("Helvetica-Bold").fontSize(16).text("Röstprotokoll");
-  doc.moveDown(0.4);
-
-  doc.font("Helvetica").fontSize(10).fillColor("#333");
   doc.text(`Charge-ID: ${b.id}`);
   doc.text(`Zeit: ${fmtDateTime(b.createdAt)}`);
   doc.text(`Sorte: ${b.coffeeName} (${b.coffeeId})`);
