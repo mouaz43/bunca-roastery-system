@@ -2,17 +2,12 @@
 const PDFDocument = require("pdfkit");
 const store = require("../data/store");
 const receipts = require("../data/receipts");
+const roast = require("../data/roast");
 
-function num(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-function fmtDateTime(iso) {
-  try { return String(iso).slice(0,19).replace("T"," "); } catch { return String(iso||""); }
-}
-function fmtDate(iso) {
-  try { return String(iso).slice(0,10); } catch { return String(iso||""); }
-}
+function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function fmtDateTime(iso) { try { return String(iso).slice(0,19).replace("T"," "); } catch { return String(iso||""); } }
+function fmtDate(iso) { try { return String(iso).slice(0,10); } catch { return String(iso||""); } }
+
 function statusLabel(st) {
   if (st === "ENTWURF") return "Entwurf";
   if (st === "EINGEGANGEN") return "Eingegangen";
@@ -51,7 +46,6 @@ exports.orderPdf = async (req, res) => {
       : `Filialbestellung – ${getShopName(order.shopId)}`;
 
   const doc = new PDFDocument({ size: "A4", margin: 40 });
-
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="bestellung-${order.id}.pdf"`);
   doc.pipe(res);
@@ -97,15 +91,12 @@ exports.orderPdf = async (req, res) => {
   doc.font("Helvetica").fontSize(10).fillColor("#111");
 
   let total = 0;
-  const items = order.items || [];
-
-  for (const it of items) {
+  for (const it of (order.items || [])) {
     const name = it.coffeeName || it.coffeeId || "-";
     const kg = num(it.kg);
     total += kg;
 
     if (y > 760) { doc.addPage(); y = doc.y; }
-
     doc.text(name, xCoffee, y, { width: 420 });
     doc.text(kg.toFixed(1), xKg, y, { width: 60, align: "right" });
     y += 18;
@@ -131,7 +122,6 @@ exports.receiptPdf = async (req, res) => {
   const r = await receipts.getReceiptById(id);
   if (!r) return res.status(404).send("Wareneingang nicht gefunden.");
 
-  // Admin only (your route will be ADMIN anyway)
   const doc = new PDFDocument({ size: "A4", margin: 40 });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="wareneingang-${r.id}.pdf"`);
@@ -163,6 +153,56 @@ exports.receiptPdf = async (req, res) => {
 
   doc.font("Helvetica").fontSize(10).fillColor("#666");
   doc.text("Unterschrift / Kontrolle:", 40, doc.y);
+  doc.moveDown(2);
+  doc.strokeColor("#999999").moveTo(40, doc.y).lineTo(250, doc.y).stroke();
+
+  doc.end();
+};
+
+exports.roastPdf = async (req, res) => {
+  const id = req.params.id;
+  const b = await roast.getBatchById(id);
+  if (!b) return res.status(404).send("Röstcharge nicht gefunden.");
+
+  const meta = b.meta || {};
+  const greenKg = num(meta.greenKg);
+  const yieldPct = num(meta.yieldPct);
+  const roastedKg = num(meta.roastedKg || b.roastedKg);
+  const note = String(meta.note || "");
+
+  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="roestprotokoll-${b.id}.pdf"`);
+  doc.pipe(res);
+
+  doc.font("Helvetica-Bold").fontSize(18).text("Bunca Rösterei", { continued: true });
+  doc.font("Helvetica").fontSize(10).text("  Produktions- & Bestellsystem");
+  doc.moveDown(0.6);
+
+  doc.font("Helvetica-Bold").fontSize(16).text("Röstprotokoll");
+  doc.moveDown(0.4);
+
+  doc.font("Helvetica").fontSize(10).fillColor("#333");
+  doc.text(`Charge-ID: ${b.id}`);
+  doc.text(`Zeit: ${fmtDateTime(b.createdAt)}`);
+  doc.text(`Sorte: ${b.coffeeName} (${b.coffeeId})`);
+  doc.text(`Rohkaffee eingesetzt: ${greenKg.toFixed(1)} kg`);
+  doc.text(`Yield: ${yieldPct.toFixed(0)} %`);
+  doc.text(`Röstkaffee Ergebnis: ${roastedKg.toFixed(1)} kg`);
+  doc.text(`Status: ${b.status}`);
+
+  if (note) {
+    doc.moveDown(0.4);
+    doc.font("Helvetica-Bold").text("Notiz:");
+    doc.font("Helvetica").text(note);
+  }
+
+  doc.moveDown(2);
+  doc.strokeColor("#cccccc").moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+  doc.moveDown(1.2);
+
+  doc.font("Helvetica").fontSize(10).fillColor("#666");
+  doc.text("Freigabe / Unterschrift:", 40, doc.y);
   doc.moveDown(2);
   doc.strokeColor("#999999").moveTo(40, doc.y).lineTo(250, doc.y).stroke();
 
