@@ -3,27 +3,30 @@
   var roastDemand = (typeof roastDemand !== "undefined" && roastDemand) ? roastDemand : [];
   var batches = (typeof batches !== "undefined" && batches) ? batches : [];
 
-  var queryObj = (typeof query !== "undefined" && query) ? query : (typeof query !== "undefined" ? query : null);
+  var queryObj = (typeof query !== "undefined" && query) ? query : null;
   var roastOk = (queryObj && queryObj.roast_ok) ? String(queryObj.roast_ok) : "";
   var roastError = (queryObj && queryObj.roast_error) ? String(queryObj.roast_error) : "";
   var batchId = (queryObj && queryObj.batch_id) ? String(queryObj.batch_id) : "";
 
-  // If your controller passes coffees, use it; otherwise fallback to inventory keys
   var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
   if (!coffees.length && inventory && inventory.greenBeansKg) {
     coffees = Object.keys(inventory.greenBeansKg).map(id => ({ id, name: id, packDefaultKg: 1 }));
   }
 
-  function num(v){
-    var n = Number(v);
-    return isFinite(n) ? n : 0;
-  }
-  function fmt1(n){
-    var v = num(n);
-    return (Math.round(v*10)/10).toFixed(1);
-  }
-  function fmtTs(iso){
-    try { return String(iso).slice(0,19).replace("T"," "); } catch(e){ return String(iso||""); }
+  function num(v){ var n=Number(v); return isFinite(n)?n:0; }
+  function fmt1(n){ var v=num(n); return (Math.round(v*10)/10).toFixed(1); }
+  function fmtTs(iso){ try { return String(iso).slice(0,19).replace("T"," "); } catch(e){ return String(iso||""); } }
+  function dayKey(iso){ try { return String(iso).slice(0,10); } catch(e){ return ""; } }
+
+  function parseMeta(note){
+    if (!note) return { ok:false, note:"" };
+    try{
+      var o = JSON.parse(note);
+      if (o && typeof o === "object") return { ok:true, meta:o };
+      return { ok:false, note:String(note) };
+    }catch(e){
+      return { ok:false, note:String(note) };
+    }
   }
 %>
 
@@ -58,8 +61,6 @@
   .pill .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
   .pill.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
   .pill.ok .dot{ background: rgba(38,201,122,.9); }
-  .pill.warn{ border-color: rgba(255,168,0,.35); background: rgba(255,168,0,.10); }
-  .pill.warn .dot{ background: rgba(255,168,0,.95); }
 
   .kpi-grid{ display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0,1fr)); }
   @media (min-width:800px){ .kpi-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
@@ -115,9 +116,32 @@
   }
   .item-top{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; }
   .item-title{ font-weight:950; }
-  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   .sub{ margin-top:4px; font-size:12px; opacity:.75; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   .actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+  .mini{ height:40px; border-radius:16px; }
+
+  .batch-grid{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:10px;
+  }
+  .meta-grid{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap:10px;
+    margin-top:10px;
+  }
+  @media (max-width:900px){ .meta-grid{ grid-template-columns:1fr; } }
+  .meta{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:14px;
+    padding:10px;
+    background: rgba(255,255,255,.55);
+  }
+  .meta .k{ font-size:12px; opacity:.75; font-weight:900; }
+  .meta .v{ margin-top:4px; font-weight:950; }
+  .top-tools{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
 </style>
 
 <% if (roastOk) { %>
@@ -129,7 +153,6 @@
         <p class="mono" style="margin-top:8px; opacity:.75;">Charge-ID: <%= batchId %></p>
       <% } %>
     </div>
-
     <% if (batchId) { %>
       <a class="btn btn-primary" style="height:46px; border-radius:18px; display:inline-flex; align-items:center;"
          target="_blank" rel="noopener"
@@ -151,38 +174,26 @@
 
 <div class="prod-shell">
 
-  <!-- LEFT: Roast action + quick overview -->
+  <!-- LEFT -->
   <div class="card">
     <div class="row" style="justify-content:space-between; align-items:flex-start;">
       <div>
         <h2 style="margin:0;">Produktion</h2>
-        <div class="small-note">Einfacher Ablauf: Bedarf ansehen → Rösten → PDF → Lager aktualisiert.</div>
+        <div class="small-note">Bedarf ansehen, rösten, PDF drucken. Ruhig und klar.</div>
       </div>
       <span class="pill ok"><span class="dot"></span>Admin</span>
     </div>
 
     <div class="kpi-grid mt-3">
-      <div class="kpi">
-        <div class="k">Freigegeben/Offen</div>
-        <div class="v"><%= roastDemand.length %></div>
-      </div>
-      <div class="kpi">
-        <div class="k">Chargen</div>
-        <div class="v"><%= batches.length %></div>
-      </div>
-      <div class="kpi">
-        <div class="k">Rohkaffee Sorten</div>
-        <div class="v"><%= coffees.length %></div>
-      </div>
-      <div class="kpi">
-        <div class="k">Heute</div>
-        <div class="v"><span class="mono"><%= fmtTs(new Date().toISOString()) %></span></div>
-      </div>
+      <div class="kpi"><div class="k">Bedarf Positionen</div><div class="v"><%= roastDemand.length %></div></div>
+      <div class="kpi"><div class="k">Chargen</div><div class="v"><%= batches.length %></div></div>
+      <div class="kpi"><div class="k">Sorten</div><div class="v"><%= coffees.length %></div></div>
+      <div class="kpi"><div class="k">Heute</div><div class="v"><span class="mono"><%= dayKey(new Date().toISOString()) %></span></div></div>
     </div>
 
     <div class="panel mt-3">
-      <h3>Rösten (Roh → Röst)</h3>
-      <p>3 Felder. Default Yield ist 85%. Lager wird automatisch aktualisiert und ein PDF wird druckbar.</p>
+      <h3>Rösten</h3>
+      <p>Nur die wichtigen Felder. Rest macht das System (Lager + Aktivität + PDF).</p>
 
       <form class="form" method="POST" action="/actions/roast/create">
         <div class="row3">
@@ -223,20 +234,17 @@
         <button class="btn btn-primary" type="submit" style="height:46px; border-radius:18px;">Röstung speichern</button>
 
         <div class="small-note" style="margin-top:8px;">
-          Hinweis: Wenn nicht genug Rohkaffee vorhanden ist, blockiert das System die Röstung.
+          Hinweis: Nicht genug Rohkaffee = Röstung wird blockiert.
         </div>
       </form>
     </div>
 
     <details class="fold mt-3" open>
-      <summary>
-        <span>Bedarf (aus freigegebenen Bestellungen)</span>
-        <span style="opacity:.6;">▼</span>
-      </summary>
+      <summary><span>Bedarf (freigegeben)</span><span style="opacity:.6;">▼</span></summary>
 
       <div class="list mt-3">
         <% if (!roastDemand.length) { %>
-          <div class="small-note">Kein aktueller Bedarf (Freigabe fehlt oder alles erledigt).</div>
+          <div class="small-note">Kein aktueller Bedarf.</div>
         <% } %>
 
         <% for (var d=0; d<roastDemand.length; d++) { %>
@@ -246,10 +254,10 @@
                 <div class="item-title"><%= roastDemand[d].coffeeName %></div>
                 <div class="sub mono"><%= roastDemand[d].coffeeId %></div>
               </div>
-              <span class="pill warn"><span class="dot"></span>Bedarf: <span class="mono"><%= fmt1(roastDemand[d].kg) %></span> kg</span>
+              <span class="pill"><span class="dot"></span>Bedarf: <span class="mono"><%= fmt1(roastDemand[d].kg) %></span> kg</span>
             </div>
             <div class="small-note" style="margin-top:8px;">
-              Tipp: Röste in sinnvollen Chargen (z.B. 5–15kg), statt alles auf einmal.
+              Tipp: Röste in sinnvollen Chargen (z.B. 5–15kg).
             </div>
           </div>
         <% } %>
@@ -257,45 +265,76 @@
     </details>
   </div>
 
-  <!-- RIGHT: Recent batches + quick PDF access -->
+  <!-- RIGHT: Charges -->
   <div class="card">
-    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+    <div class="top-tools">
       <div>
         <h2 style="margin:0;">Chargen</h2>
-        <div class="small-note">Letzte Röstungen. PDF jederzeit druckbar.</div>
+        <div class="small-note">Saubere Anzeige. PDF + Löschen möglich.</div>
       </div>
       <span class="pill"><span class="dot"></span><%= batches.length %> total</span>
     </div>
 
-    <div class="list mt-3">
+    <div class="row mt-3" style="gap:10px; flex-wrap:wrap;">
+      <input class="input inputBig" id="batchSearch" placeholder="Suche (Sorte / ID)" style="flex:1; min-width:240px;" />
+      <button class="btn btn-ghost mini" type="button" id="onlyToday">Nur heute</button>
+      <button class="btn btn-ghost mini" type="button" id="showAll">Alle</button>
+    </div>
+
+    <div class="batch-grid mt-3" id="batchGrid" data-mode="all" data-today="<%= dayKey(new Date().toISOString()) %>">
       <% if (!batches.length) { %>
         <div class="small-note">Noch keine Chargen vorhanden.</div>
       <% } %>
 
-      <% for (var b=0;b<batches.length;b++) { %>
-        <div class="item">
+      <% for (var b=0;b<batches.length;b++) {
+           var meta = parseMeta(batches[b].note);
+           var green = meta.ok ? num(meta.meta.greenKg) : 0;
+           var yieldPct = meta.ok ? num(meta.meta.yieldPct) : 0;
+           var roasted = meta.ok ? num(meta.meta.roastedKg) : num(batches[b].kg);
+           var noteTxt = meta.ok ? String(meta.meta.note || "") : String(meta.note || "");
+           var created = String(batches[b].createdAt || "");
+      %>
+        <div class="item"
+             data-name="<%= String(batches[b].coffeeName||'').toLowerCase() %>"
+             data-id="<%= String(batches[b].id||'').toLowerCase() %>"
+             data-day="<%= dayKey(created) %>">
           <div class="item-top">
-            <div>
+            <div style="min-width:0;">
               <div class="item-title"><%= batches[b].coffeeName %></div>
-              <div class="sub mono"><%= batches[b].coffeeId %> · <%= fmtTs(batches[b].createdAt) %></div>
+              <div class="sub mono"><%= batches[b].coffeeId %> · <%= fmtTs(created) %></div>
             </div>
-
-            <span class="pill ok"><span class="dot"></span><span class="mono"><%= fmt1(batches[b].kg) %></span> kg</span>
+            <span class="pill ok"><span class="dot"></span><span class="mono"><%= fmt1(roasted) %></span> kg</span>
           </div>
 
-          <% if (batches[b].note) { %>
-            <div class="small-note" style="margin-top:8px;"><%= batches[b].note %></div>
+          <div class="meta-grid">
+            <div class="meta">
+              <div class="k">Roh kg</div>
+              <div class="v mono"><%= meta.ok ? fmt1(green) : "-" %></div>
+            </div>
+            <div class="meta">
+              <div class="k">Yield</div>
+              <div class="v mono"><%= meta.ok ? (Math.round(yieldPct) + " %") : "-" %></div>
+            </div>
+            <div class="meta">
+              <div class="k">Röst kg</div>
+              <div class="v mono"><%= fmt1(roasted) %> kg</div>
+            </div>
+          </div>
+
+          <% if (noteTxt) { %>
+            <div class="small-note" style="margin-top:10px;"><%= noteTxt %></div>
           <% } %>
 
           <div class="actions mt-3">
-            <a class="btn btn-ghost" style="height:46px; border-radius:18px; display:inline-flex; align-items:center;"
-               target="_blank" rel="noopener"
-               href="/production/batches/<%= batches[b].id %>/pdf">
-              PDF
-            </a>
+            <a class="btn btn-ghost mini" target="_blank" rel="noopener" href="/production/batches/<%= batches[b].id %>/pdf">PDF</a>
+
+            <form method="POST" action="/actions/batches/<%= batches[b].id %>/delete"
+                  onsubmit="return confirm('Charge wirklich löschen? Hinweis: Wenn Lager schon bewegt wurde, sollte man löschen nur im Ausnahmefall.');">
+              <button class="btn btn-danger mini" type="submit">Löschen</button>
+            </form>
           </div>
 
-          <div class="small-note mono" style="opacity:.6; margin-top:10px;"><%= batches[b].id %></div>
+          <div class="small-note mono" style="opacity:.55; margin-top:10px;"><%= batches[b].id %></div>
         </div>
       <% } %>
     </div>
@@ -305,21 +344,14 @@
 
 <script>
   const inv = <%- JSON.stringify(inventory || {}) %>;
-  const coffees = <%- JSON.stringify(coffees || []) %>;
-
   const coffeeSel = document.getElementById("coffeeId");
   const greenKg = document.getElementById("greenKg");
   const yieldPct = document.getElementById("yieldPct");
   const expected = document.getElementById("expectedRoasted");
   const hint = document.getElementById("stockHint");
 
-  function n(v){
-    const x = Number(v);
-    return Number.isFinite(x) ? x : 0;
-  }
-  function f1(x){
-    return (Math.round(n(x)*10)/10).toFixed(1);
-  }
+  function n(v){ const x=Number(v); return Number.isFinite(x)?x:0; }
+  function f1(x){ return (Math.round(n(x)*10)/10).toFixed(1); }
 
   function updateExpected(){
     const g = n(greenKg?.value);
@@ -327,20 +359,45 @@
     const r = (g * y) / 100;
     if (expected) expected.value = (g > 0 ? (f1(r) + " kg") : "-");
   }
-
   function updateHint(){
     const id = coffeeSel?.value || "";
     if (!id || !hint) { if (hint) hint.textContent = ""; return; }
     const green = n(inv.greenBeansKg && inv.greenBeansKg[id]);
     const roasted = n(inv.roastedKg && inv.roastedKg[id]);
-
     hint.textContent = `Aktuell: Roh ${f1(green)} kg · Röst ${f1(roasted)} kg`;
   }
-
-  if (coffeeSel) coffeeSel.addEventListener("change", () => { updateHint(); });
+  if (coffeeSel) coffeeSel.addEventListener("change", updateHint);
   if (greenKg) greenKg.addEventListener("input", updateExpected);
   if (yieldPct) yieldPct.addEventListener("input", updateExpected);
+  updateHint(); updateExpected();
 
-  updateHint();
-  updateExpected();
+  // Batch filtering
+  const grid = document.getElementById("batchGrid");
+  const search = document.getElementById("batchSearch");
+  const onlyToday = document.getElementById("onlyToday");
+  const showAll = document.getElementById("showAll");
+
+  function applyBatchFilter(){
+    if (!grid) return;
+    const q = (search?.value || "").toLowerCase().trim();
+    const mode = grid.getAttribute("data-mode") || "all";
+    const today = grid.getAttribute("data-today") || "";
+
+    const items = Array.from(grid.querySelectorAll(".item"));
+    items.forEach(el => {
+      const name = el.getAttribute("data-name") || "";
+      const id = el.getAttribute("data-id") || "";
+      const day = el.getAttribute("data-day") || "";
+
+      const matchText = !q || name.includes(q) || id.includes(q);
+      const matchMode = (mode === "all") ? true : (day === today);
+
+      el.style.display = (matchText && matchMode) ? "" : "none";
+    });
+  }
+
+  if (search) search.addEventListener("input", applyBatchFilter);
+  if (onlyToday) onlyToday.addEventListener("click", ()=>{ grid.setAttribute("data-mode","today"); applyBatchFilter(); });
+  if (showAll) showAll.addEventListener("click", ()=>{ grid.setAttribute("data-mode","all"); applyBatchFilter(); });
+  applyBatchFilter();
 </script>
