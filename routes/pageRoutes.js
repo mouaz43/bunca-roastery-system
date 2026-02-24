@@ -7,7 +7,7 @@ const inventoryController = require("../controllers/inventoryController");
 const pdfController = require("../controllers/pdfController");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
-// Safe wrapper: never crash with "fn is not a function" again
+// Safe wrapper: avoids "fn is not a function" crashes
 const safe = (handler, name) => {
   if (typeof handler !== "function") {
     return (req, res) => {
@@ -116,6 +116,14 @@ router.get(
   requireAuth,
   requireRole("ADMIN"),
   safe(pdfController.receiptPdf, "pdfController.receiptPdf")
+);
+
+// NEW: Roast / Batch PDF
+router.get(
+  "/production/batches/:id/pdf",
+  requireAuth,
+  requireRole("ADMIN"),
+  safe(pdfController.roastPdf, "pdfController.roastPdf")
 );
 
 module.exports = router;
