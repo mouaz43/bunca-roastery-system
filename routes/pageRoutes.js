@@ -8,7 +8,7 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Auth / login
+// Auth / Login
 router.get("/", wrap(pageController.renderHome));
 router.get("/login", wrap(pageController.renderLogin));
 router.post("/login", wrap(pageController.handleLogin));
