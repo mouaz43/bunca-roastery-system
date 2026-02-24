@@ -20,11 +20,13 @@ function calcTotalKg(items) {
 function requireOrderAccess(req, order) {
   const u = req.session && req.session.user;
   if (!u) return false;
+
   if (u.role === "ADMIN") return true;
+
   if (u.role === "SHOP") {
     return order.channel === "FILIALE" && String(order.shopId || "") === String(u.shopId || "");
   }
-  // B2B could be added later
+
   return false;
 }
 
@@ -37,9 +39,11 @@ exports.orderPdf = async (req, res) => {
     return res.status(403).send("Kein Zugriff.");
   }
 
-  // Resolve names
-  const shopName = (store.SHOPS || []).find(s => String(s.id) === String(order.shopId))?.name || order.shopId || "-";
+  // Namen/Infos
+  const shopName =
+    (store.SHOPS || []).find((s) => String(s.id) === String(order.shopId))?.name || order.shopId || "-";
   const who = order.channel === "B2B" ? (order.customerName || "B2B Kunde") : shopName;
+
   const totalKg = calcTotalKg(order.items);
   const stamp = nowStamp();
 
@@ -57,27 +61,24 @@ exports.orderPdf = async (req, res) => {
 
   doc.pipe(res);
 
-  // Colors (match your beige/brown)
+  // Farben (beige/brown, professionell)
   const cText = "#2B1E12";
   const cMuted = "#6C5A46";
   const cLine = "#E7D9C7";
   const cAccent = "#C8A36A";
   const cPanel = "#FBF6EF";
 
-  const pageW = doc.page.width;
-  const contentW = pageW - doc.page.margins.left - doc.page.margins.right;
-
-  // Header panel
   const x = doc.page.margins.left;
   let y = doc.page.margins.top;
+  const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
+  // Header
   doc.roundedRect(x, y, contentW, 92, 14).fill(cPanel);
   doc.fillColor(cText);
-
   doc.fontSize(20).font("Helvetica-Bold").text("Bunca Rösterei", x + 18, y + 16);
   doc.fontSize(12).font("Helvetica").fillColor(cMuted).text("Produktions- und Bestellsystem · Bestellbeleg", x + 18, y + 42);
 
-  // Right badge
+  // Badge rechts
   const badgeW = 160;
   doc.roundedRect(x + contentW - badgeW - 18, y + 18, badgeW, 34, 10).fill(cAccent);
   doc.fillColor("#ffffff").fontSize(12).font("Helvetica-Bold")
@@ -85,13 +86,13 @@ exports.orderPdf = async (req, res) => {
 
   y += 110;
 
-  // Meta block
+  // Block: Bestelldaten
   doc.fillColor(cText).fontSize(12).font("Helvetica-Bold").text("Bestelldaten", x, y);
   y += 14;
   doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(1).strokeColor(cLine).stroke();
   y += 14;
 
-  const leftColW = Math.floor(contentW * 0.55);
+  const leftColW = Math.floor(contentW * 0.58);
   const rightColW = contentW - leftColW;
 
   const metaLeft = [
@@ -119,10 +120,9 @@ exports.orderPdf = async (req, res) => {
 
   const yLeftEnd = drawKV(metaLeft, x, y, leftColW - 10);
   drawKV(metaRight, x + leftColW + 20, y, rightColW - 10);
-
   y = Math.max(yLeftEnd, y + metaRight.length * 34) + 6;
 
-  // Note
+  // Notiz (optional)
   if (order.note && String(order.note).trim()) {
     doc.roundedRect(x, y, contentW, 54, 12).strokeColor(cLine).lineWidth(1).stroke();
     doc.fillColor(cMuted).font("Helvetica").fontSize(10).text("Notiz", x + 14, y + 12);
@@ -132,7 +132,7 @@ exports.orderPdf = async (req, res) => {
     y += 8;
   }
 
-  // Items table
+  // Positionen Tabelle
   doc.fillColor(cText).font("Helvetica-Bold").fontSize(12).text("Positionen", x, y);
   y += 14;
   doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(1).strokeColor(cLine).stroke();
@@ -142,12 +142,12 @@ exports.orderPdf = async (req, res) => {
   const col2 = Math.floor(contentW * 0.18);
   const col3 = contentW - col1 - col2;
 
-  // table header
   doc.fillColor(cMuted).font("Helvetica-Bold").fontSize(10);
   doc.text("Sorte", x, y, { width: col1 });
   doc.text("ID", x + col1, y, { width: col2 });
   doc.text("kg", x + col1 + col2, y, { width: col3, align: "right" });
   y += 18;
+
   doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(1).strokeColor(cLine).stroke();
   y += 10;
 
@@ -155,7 +155,8 @@ exports.orderPdf = async (req, res) => {
 
   (order.items || []).forEach((it) => {
     const rowH = 22;
-    if (y + rowH > doc.page.height - doc.page.margins.bottom - 70) {
+    const bottomLimit = doc.page.height - doc.page.margins.bottom - 80;
+    if (y + rowH > bottomLimit) {
       doc.addPage();
       y = doc.page.margins.top;
     }
@@ -163,18 +164,17 @@ exports.orderPdf = async (req, res) => {
     doc.text(String(it.coffeeName || "-"), x, y, { width: col1 });
     doc.fillColor(cMuted).text(String(it.coffeeId || "-"), x + col1, y, { width: col2 });
     doc.fillColor(cText).text(String(it.kg ?? 0), x + col1 + col2, y, { width: col3, align: "right" });
+
     y += rowH;
     doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(0.5).strokeColor("#EFE6DA").stroke();
     y += 6;
   });
 
-  // Total
+  // Summe
   y += 8;
   doc.roundedRect(x, y, contentW, 44, 12).fill(cPanel);
   doc.fillColor(cMuted).font("Helvetica-Bold").fontSize(10).text("Summe", x + 14, y + 14);
   doc.fillColor(cText).font("Helvetica-Bold").fontSize(14).text(`${totalKg.toFixed(1)} kg`, x, y + 12, { width: contentW - 14, align: "right" });
-
-  y += 60;
 
   // Footer
   doc.fillColor(cMuted).font("Helvetica").fontSize(9)
