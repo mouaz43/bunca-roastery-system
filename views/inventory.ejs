@@ -1,8 +1,11 @@
 <%
-// IMPORTANT: use DIFFERENT variable names to avoid "Cannot access before initialization"
-var cardsData = (typeof cards !== "undefined" && cards) ? cards : [];
-var movesData = (typeof moves !== "undefined" && moves) ? moves : [];
-var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt : "";
+  var cardsData = (typeof cards !== "undefined" && cards) ? cards : [];
+  var movesData = (typeof moves !== "undefined" && moves) ? moves : [];
+  var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt : "";
+
+  var receiptOk = (typeof query !== "undefined" && query && query.receipt_ok) ? String(query.receipt_ok) : "";
+  var receiptError = (typeof query !== "undefined" && query && query.receipt_error) ? String(query.receipt_error) : "";
+  var receiptId = (typeof query !== "undefined" && query && query.receipt_id) ? String(query.receipt_id) : "";
 %>
 
 <style>
@@ -12,6 +15,8 @@ var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt :
   .inv-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
   .inv-title{ margin:0; font-weight:950; font-size:22px; }
   .inv-sub{ margin-top:6px; font-size:13px; opacity:.75; }
+
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
   .pill{
     display:inline-flex; align-items:center; gap:8px;
@@ -28,7 +33,21 @@ var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt :
   .pill.low{ border-color: rgba(255,77,77,.35); background: rgba(255,77,77,.08); }
   .pill.low .dot{ background: rgba(255,77,77,.9); }
 
-  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  .notice{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.70);
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+  .notice h3{ margin:0; font-size:14px; font-weight:950; }
+  .notice p{ margin:6px 0 0; font-size:13px; opacity:.8; }
+  .notice.ok{ border-color: rgba(38,201,122,.30); background: rgba(38,201,122,.06); }
+  .notice.err{ border-color: rgba(255,77,77,.30); background: rgba(255,77,77,.06); }
 
   .kpi-grid{ display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0,1fr)); }
   @media (min-width:800px){ .kpi-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
@@ -112,6 +131,35 @@ var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt :
   .move pre{ margin:8px 0 0; font-size:12px; opacity:.75; white-space:pre-wrap; }
 </style>
 
+<% if (receiptOk) { %>
+  <div class="notice ok">
+    <div>
+      <h3>Wareneingang gespeichert</h3>
+      <p><%= receiptOk %></p>
+      <% if (receiptId) { %>
+        <p class="mono" style="margin-top:8px; opacity:.75;">Beleg-ID: <%= receiptId %></p>
+      <% } %>
+    </div>
+
+    <% if (receiptId) { %>
+      <a class="btn btn-primary" style="height:46px; border-radius:18px; display:inline-flex; align-items:center;"
+         target="_blank" rel="noopener"
+         href="/inventory/receipts/<%= receiptId %>/pdf">
+        Wareneingang PDF
+      </a>
+    <% } %>
+  </div>
+<% } %>
+
+<% if (receiptError) { %>
+  <div class="notice err">
+    <div>
+      <h3>Fehler beim Wareneingang</h3>
+      <p><%= receiptError %></p>
+    </div>
+  </div>
+<% } %>
+
 <div class="inv-shell">
 
   <div class="card">
@@ -190,11 +238,10 @@ var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt :
   <div style="display:grid; gap:14px;">
     <div class="action">
       <h3>Wareneingang</h3>
-      <p>Rohkaffee kommt rein. Schnell buchen, später automatisch als PDF druckbar.</p>
+      <p>Rohkaffee kommt rein. Nach dem Speichern kannst du direkt den Beleg als PDF drucken.</p>
 
-      <form class="form" method="POST" action="/actions/inventory/apply">
-        <input type="hidden" name="type" value="GREEN" />
-
+      <!-- IMPORTANT: receipt route -->
+      <form class="form" method="POST" action="/actions/inventory/receipt">
         <div class="row2">
           <div>
             <div class="label">Sorte</div>
@@ -215,7 +262,7 @@ var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt :
         <div>
           <div class="label">Notiz (optional)</div>
           <input class="input inputBig" name="note" placeholder="Lieferant / Rechnung / Charge" />
-          <div class="help">Tipp: Diese Notiz erscheint später im Wareneingang-PDF.</div>
+          <div class="help">Tipp: Die Notiz erscheint im Wareneingang-PDF.</div>
         </div>
 
         <button class="btn btn-primary" type="submit" style="height:46px; border-radius:18px;">Speichern</button>
@@ -263,8 +310,8 @@ var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt :
 
     <div class="action">
       <h3>Als nächstes: Rösten</h3>
-      <p>Wir bauen eine 3-Felder-Aktion (Roh → Röst) + automatisches Röstprotokoll-PDF.</p>
-      <div class="small-note">Erst wenn diese Seite sauber läuft und du zufrieden bist.</div>
+      <p>3 Felder: Sorte, Roh kg, Yield. Ein Klick → Roh runter, Röst hoch. Dazu Röstprotokoll-PDF.</p>
+      <div class="small-note">Wenn du „OK“ sagst, bauen wir es direkt.</div>
     </div>
   </div>
 </div>
