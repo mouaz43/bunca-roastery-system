@@ -6,6 +6,8 @@ const actionController = require("../controllers/actionController");
 const adminController = require("../controllers/adminController");
 const masterController = require("../controllers/masterController");
 const receiptController = require("../controllers/receiptController");
+const roastController = require("../controllers/roastController");
+
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -17,11 +19,12 @@ router.post("/orders/:id/approve", requireAuth, requireRole("ADMIN"), wrap(actio
 router.post("/orders/:id/deliver", requireAuth, requireRole("ADMIN"), wrap(actionController.deliverOrder));
 router.post("/orders/:id/delete", requireAuth, requireRole("ADMIN"), wrap(actionController.deleteOrder));
 
-// Inventory (Admin only) - new Wareneingang
+// Inventory (Admin only)
 router.post("/inventory/receipt", requireAuth, requireRole("ADMIN"), wrap(receiptController.createReceipt));
-
-// Inventory generic (Admin only) - keep if you still use it somewhere
 router.post("/inventory/apply", requireAuth, requireRole("ADMIN"), wrap(actionController.applyInventoryChange));
+
+// Roast (Admin only) - NEW
+router.post("/roast/create", requireAuth, requireRole("ADMIN"), wrap(roastController.createRoast));
 
 // Batches (Admin only)
 router.post("/batches/create", requireAuth, requireRole("ADMIN"), wrap(actionController.createBatch));
