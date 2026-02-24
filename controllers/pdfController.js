@@ -2,183 +2,164 @@
 const PDFDocument = require("pdfkit");
 const store = require("../data/store");
 
-function fmtDate(d) {
-  if (!d) return "-";
-  return String(d).slice(0, 10);
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
-function nowStamp() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function fmtDate(iso) {
+  try {
+    return String(iso).slice(0, 10);
+  } catch {
+    return String(iso || "");
+  }
 }
 
-function calcTotalKg(items) {
-  return (items || []).reduce((s, it) => s + Number(it.kg || 0), 0);
+function statusLabel(st) {
+  if (st === "ENTWURF") return "Entwurf";
+  if (st === "EINGEGANGEN") return "Eingegangen";
+  if (st === "FREIGEGEBEN") return "Freigegeben";
+  if (st === "IN_PRODUKTION") return "In Produktion";
+  if (st === "VERPACKT") return "Verpackt";
+  if (st === "AUSGELIEFERT") return "Ausgeliefert";
+  return st || "-";
 }
 
-function requireOrderAccess(req, order) {
-  const u = req.session && req.session.user;
-  if (!u) return false;
+function channelLabel(ch) {
+  return ch === "B2B" ? "B2B" : "Filiale";
+}
 
-  if (u.role === "ADMIN") return true;
+function getShopName(shopId) {
+  const s = (store.SHOPS || []).find((x) => String(x.id) === String(shopId));
+  return s ? s.name : (shopId || "-");
+}
 
-  if (u.role === "SHOP") {
-    return order.channel === "FILIALE" && String(order.shopId || "") === String(u.shopId || "");
+function requireCanViewOrder(req, order) {
+  const user = req.user || req.session?.user || null;
+  if (!user) return false;
+
+  const role = String(user.role || "").toUpperCase();
+  if (role === "ADMIN") return true;
+
+  if (role === "SHOP") {
+    // Shop darf nur eigene Filiale sehen/printen
+    const myShopId = user.shopId || user.shop_id || "";
+    return String(order.shopId) === String(myShopId);
   }
 
   return false;
 }
 
 exports.orderPdf = async (req, res) => {
-  const id = String(req.params.id || "").trim();
-  const order = await store.getOrderById(id);
-  if (!order) return res.status(404).send("Bestellung nicht gefunden.");
+  const orderId = req.params.id;
+  const order = await store.getOrderById(orderId);
 
-  if (!requireOrderAccess(req, order)) {
-    return res.status(403).send("Kein Zugriff.");
+  if (!order) {
+    return res.status(404).send("Bestellung nicht gefunden.");
   }
 
-  // Namen/Infos
-  const shopName =
-    (store.SHOPS || []).find((s) => String(s.id) === String(order.shopId))?.name || order.shopId || "-";
-  const who = order.channel === "B2B" ? (order.customerName || "B2B Kunde") : shopName;
+  if (!requireCanViewOrder(req, order)) {
+    return res.status(403).send("Keine Berechtigung.");
+  }
 
-  const totalKg = calcTotalKg(order.items);
-  const stamp = nowStamp();
+  const title =
+    order.channel === "B2B"
+      ? `B2B Bestellung – ${order.customerName || "Kunde"}`
+      : `Filialbestellung – ${getShopName(order.shopId)}`;
+
+  const doc = new PDFDocument({ size: "A4", margin: 40 });
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="bunca-bestellung-${id}.pdf"`);
-
-  const doc = new PDFDocument({
-    size: "A4",
-    margin: 48,
-    info: {
-      Title: `Bunca Bestellung ${id}`,
-      Author: "Bunca Roastery System"
-    }
-  });
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="bestellung-${order.id}.pdf"`
+  );
 
   doc.pipe(res);
 
-  // Farben (beige/brown, professionell)
-  const cText = "#2B1E12";
-  const cMuted = "#6C5A46";
-  const cLine = "#E7D9C7";
-  const cAccent = "#C8A36A";
-  const cPanel = "#FBF6EF";
+  // ===== Header =====
+  doc.font("Helvetica-Bold").fontSize(18).text("Bunca Rösterei", { continued: true });
+  doc.font("Helvetica").fontSize(10).text("  Produktions- & Bestellsystem");
+  doc.moveDown(0.6);
 
-  const x = doc.page.margins.left;
-  let y = doc.page.margins.top;
-  const contentW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc.font("Helvetica-Bold").fontSize(16).text(title);
+  doc.moveDown(0.4);
 
-  // Header
-  doc.roundedRect(x, y, contentW, 92, 14).fill(cPanel);
-  doc.fillColor(cText);
-  doc.fontSize(20).font("Helvetica-Bold").text("Bunca Rösterei", x + 18, y + 16);
-  doc.fontSize(12).font("Helvetica").fillColor(cMuted).text("Produktions- und Bestellsystem · Bestellbeleg", x + 18, y + 42);
+  doc.font("Helvetica").fontSize(10).fillColor("#333");
+  doc.text(`Bestell-ID: ${order.id}`);
+  doc.text(`Kanal: ${channelLabel(order.channel)}`);
+  doc.text(`Status: ${statusLabel(order.status)}`);
+  doc.text(`Lieferdatum: ${fmtDate(order.deliveryDate)}`);
 
-  // Badge rechts
-  const badgeW = 160;
-  doc.roundedRect(x + contentW - badgeW - 18, y + 18, badgeW, 34, 10).fill(cAccent);
-  doc.fillColor("#ffffff").fontSize(12).font("Helvetica-Bold")
-    .text(order.channel === "B2B" ? "B2B" : "FILIALE", x + contentW - badgeW - 18, y + 28, { width: badgeW, align: "center" });
-
-  y += 110;
-
-  // Block: Bestelldaten
-  doc.fillColor(cText).fontSize(12).font("Helvetica-Bold").text("Bestelldaten", x, y);
-  y += 14;
-  doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(1).strokeColor(cLine).stroke();
-  y += 14;
-
-  const leftColW = Math.floor(contentW * 0.58);
-  const rightColW = contentW - leftColW;
-
-  const metaLeft = [
-    ["Bestellnummer", order.id],
-    ["Kanal", order.channel],
-    [order.channel === "B2B" ? "Kunde" : "Filiale", who],
-    ["Lieferdatum", fmtDate(order.deliveryDate)]
-  ];
-
-  const metaRight = [
-    ["Status", order.status],
-    ["Erstellt", fmtDate(order.createdAt)],
-    ["Gedruckt", stamp]
-  ];
-
-  function drawKV(list, xx, yy, colW) {
-    let cy = yy;
-    list.forEach(([k, v]) => {
-      doc.fillColor(cMuted).font("Helvetica").fontSize(10).text(k, xx, cy);
-      doc.fillColor(cText).font("Helvetica-Bold").fontSize(11).text(String(v ?? "-"), xx, cy + 12, { width: colW });
-      cy += 34;
-    });
-    return cy;
-  }
-
-  const yLeftEnd = drawKV(metaLeft, x, y, leftColW - 10);
-  drawKV(metaRight, x + leftColW + 20, y, rightColW - 10);
-  y = Math.max(yLeftEnd, y + metaRight.length * 34) + 6;
-
-  // Notiz (optional)
-  if (order.note && String(order.note).trim()) {
-    doc.roundedRect(x, y, contentW, 54, 12).strokeColor(cLine).lineWidth(1).stroke();
-    doc.fillColor(cMuted).font("Helvetica").fontSize(10).text("Notiz", x + 14, y + 12);
-    doc.fillColor(cText).font("Helvetica").fontSize(11).text(String(order.note), x + 14, y + 26, { width: contentW - 28 });
-    y += 70;
+  if (order.channel === "B2B") {
+    doc.text(`B2B Kunde: ${order.customerName || "-"}`);
   } else {
-    y += 8;
+    doc.text(`Filiale: ${getShopName(order.shopId)} (${order.shopId || "-"})`);
   }
 
-  // Positionen Tabelle
-  doc.fillColor(cText).font("Helvetica-Bold").fontSize(12).text("Positionen", x, y);
-  y += 14;
-  doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(1).strokeColor(cLine).stroke();
-  y += 12;
+  if (order.note) {
+    doc.moveDown(0.2);
+    doc.font("Helvetica-Bold").text("Notiz:");
+    doc.font("Helvetica").text(order.note);
+  }
 
-  const col1 = Math.floor(contentW * 0.62);
-  const col2 = Math.floor(contentW * 0.18);
-  const col3 = contentW - col1 - col2;
+  doc.moveDown(1);
 
-  doc.fillColor(cMuted).font("Helvetica-Bold").fontSize(10);
-  doc.text("Sorte", x, y, { width: col1 });
-  doc.text("ID", x + col1, y, { width: col2 });
-  doc.text("kg", x + col1 + col2, y, { width: col3, align: "right" });
-  y += 18;
+  // ===== Tabelle Positionen =====
+  doc.font("Helvetica-Bold").fontSize(12).text("Positionen");
+  doc.moveDown(0.4);
 
-  doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(1).strokeColor(cLine).stroke();
+  const x1 = doc.x;
+  const xCoffee = x1;
+  const xKg = 460;
+  let y = doc.y;
+
+  // table header
+  doc.font("Helvetica-Bold").fontSize(10);
+  doc.text("Sorte", xCoffee, y);
+  doc.text("kg", xKg, y, { width: 60, align: "right" });
+  y += 16;
+
+  doc.moveTo(x1, y).lineTo(555, y).strokeColor("#cccccc").stroke();
   y += 10;
 
-  doc.fillColor(cText).font("Helvetica").fontSize(11);
+  doc.font("Helvetica").fontSize(10).fillColor("#111");
 
-  (order.items || []).forEach((it) => {
-    const rowH = 22;
-    const bottomLimit = doc.page.height - doc.page.margins.bottom - 80;
-    if (y + rowH > bottomLimit) {
+  let total = 0;
+  const items = order.items || [];
+
+  for (const it of items) {
+    const name = it.coffeeName || it.coffeeId || "-";
+    const kg = num(it.kg);
+    total += kg;
+
+    // page break safety
+    if (y > 760) {
       doc.addPage();
-      y = doc.page.margins.top;
+      y = doc.y;
     }
 
-    doc.text(String(it.coffeeName || "-"), x, y, { width: col1 });
-    doc.fillColor(cMuted).text(String(it.coffeeId || "-"), x + col1, y, { width: col2 });
-    doc.fillColor(cText).text(String(it.kg ?? 0), x + col1 + col2, y, { width: col3, align: "right" });
+    doc.text(name, xCoffee, y, { width: 420 });
+    doc.text(kg.toFixed(1), xKg, y, { width: 60, align: "right" });
+    y += 18;
+  }
 
-    y += rowH;
-    doc.moveTo(x, y).lineTo(x + contentW, y).lineWidth(0.5).strokeColor("#EFE6DA").stroke();
-    y += 6;
+  doc.moveDown(1);
+
+  doc.strokeColor("#cccccc");
+  doc.moveTo(x1, y).lineTo(555, y).stroke();
+  y += 10;
+
+  doc.font("Helvetica-Bold").fontSize(11);
+  doc.text("Gesamt", xCoffee, y);
+  doc.text(total.toFixed(1) + " kg", xKg, y, { width: 60, align: "right" });
+
+  // ===== Footer =====
+  doc.fillColor("#666").font("Helvetica").fontSize(9);
+  doc.moveDown(2);
+  doc.text("Hinweis: Freigabe zählt für Produktionsbedarf. Ausliefern zieht Röstkaffee ab.", {
+    align: "left"
   });
-
-  // Summe
-  y += 8;
-  doc.roundedRect(x, y, contentW, 44, 12).fill(cPanel);
-  doc.fillColor(cMuted).font("Helvetica-Bold").fontSize(10).text("Summe", x + 14, y + 14);
-  doc.fillColor(cText).font("Helvetica-Bold").fontSize(14).text(`${totalKg.toFixed(1)} kg`, x, y + 12, { width: contentW - 14, align: "right" });
-
-  // Footer
-  doc.fillColor(cMuted).font("Helvetica").fontSize(9)
-    .text("Hinweis: Dieser Beleg wird automatisch vom Bunca Roastery System erstellt.", x, doc.page.height - doc.page.margins.bottom - 24, { width: contentW });
 
   doc.end();
 };
