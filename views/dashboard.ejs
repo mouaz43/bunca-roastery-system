@@ -1,195 +1,254 @@
 <%
+  var shopMode = !!(typeof shopMode !== "undefined" && shopMode);
+  var shopId = (typeof shopId !== "undefined" && shopId) ? shopId : "";
+
   var ordersCount = (typeof ordersCount !== "undefined") ? ordersCount : 0;
   var demandCount = (typeof demandCount !== "undefined") ? demandCount : 0;
   var batchCount = (typeof batchCount !== "undefined") ? batchCount : 0;
   var activityCount = (typeof activityCount !== "undefined") ? activityCount : 0;
-  var inventoryUpdatedAt = (typeof inventoryUpdatedAt !== "undefined") ? inventoryUpdatedAt : null;
 
-  var shopMode = (typeof shopMode !== "undefined") ? shopMode : false;
-  var shopId = (typeof shopId !== "undefined") ? shopId : null;
-  var shopStatusCounts = (typeof shopStatusCounts !== "undefined") ? shopStatusCounts : null;
-  var shopNextDelivery = (typeof shopNextDelivery !== "undefined") ? shopNextDelivery : null;
+  var shopStatusCounts = (typeof shopStatusCounts !== "undefined" && shopStatusCounts) ? shopStatusCounts : null;
+  var shopNextDelivery = (typeof shopNextDelivery !== "undefined" && shopNextDelivery) ? shopNextDelivery : null;
 
-  function fmt(at){
-    if (!at) return "-";
-    return String(at).slice(0,19).replace("T"," ");
+  var inventoryUpdatedAt = (typeof inventoryUpdatedAt !== "undefined") ? inventoryUpdatedAt : "";
+
+  function safe(v){ return String(v ?? ""); }
+  function monoTs(iso){ try { return safe(iso).slice(0,19).replace("T"," "); } catch(e){ return safe(iso); } }
+
+  function stLabel(st){
+    if (st==="EINGEGANGEN") return "Eingegangen";
+    if (st==="FREIGEGEBEN") return "Freigegeben";
+    if (st==="IN_PRODUKTION") return "In Produktion";
+    if (st==="VERPACKT") return "Verpackt";
+    if (st==="AUSGELIEFERT") return "Ausgeliefert";
+    return st || "-";
   }
-
-  function n(v){ return (v===undefined || v===null) ? 0 : Number(v); }
 %>
 
-<% if (shopMode) { %>
+<style>
+  .dash-shell{ display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:1100px){ .dash-shell{ grid-template-columns: 1.05fr .95fr; } }
 
-  <div class="card-grid">
-    <div class="card">
-      <h2>Filiale Dashboard</h2>
-      <p>Sie können Bestellungen anlegen und den Status verfolgen. Freigabe, Produktion und Auslieferung übernimmt die Rösterei.</p>
-    </div>
+  .kpi-grid{ display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0,1fr)); }
+  @media (min-width:850px){ .kpi-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
 
-    <div class="card">
-      <h2>Info</h2>
-      <p>
-        Filiale: <strong><%= shopId || "-" %></strong><br/>
-        Meine Bestellungen: <strong><%= ordersCount %></strong><br/>
-        Nächste Lieferung: <strong class="mono"><%= shopNextDelivery || "-" %></strong>
-      </p>
-    </div>
-  </div>
+  .kpi{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.65);
+  }
+  .kpi .k{ font-size:12px; opacity:.75; font-weight:900; }
+  .kpi .v{ margin-top:6px; font-weight:950; font-size:20px; }
 
-  <div class="section">
-    <div class="section-head">
+  .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 12px; border-radius:999px;
+    border:1px solid rgba(0,0,0,.08);
+    background: rgba(255,255,255,.55);
+    font-weight:900; font-size:12px; white-space:nowrap;
+  }
+  .pill .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
+  .pill.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
+  .pill.ok .dot{ background: rgba(38,201,122,.9); }
+  .pill.warn{ border-color: rgba(255,168,0,.35); background: rgba(255,168,0,.10); }
+  .pill.warn .dot{ background: rgba(255,168,0,.95); }
+
+  .panel{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:14px;
+    background: rgba(255,255,255,.65);
+  }
+  .panel h3{ margin:0; font-weight:950; font-size:16px; }
+  .panel p{ margin:8px 0 0; font-size:13px; opacity:.75; }
+
+  .action-grid{ display:grid; gap:10px; grid-template-columns:1fr; }
+  @media (min-width:700px){ .action-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+
+  .action{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.60);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-height:92px;
+  }
+  .action:hover{ background: rgba(255,255,255,.72); text-decoration:none; }
+  .action .t{ font-weight:950; }
+  .action .d{ font-size:12px; opacity:.75; line-height:1.35; }
+
+  .list{ display:grid; gap:10px; }
+  .item{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;
+    padding:12px;
+    background: rgba(255,255,255,.60);
+  }
+  .rowTop{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+</style>
+
+<div class="dash-shell">
+
+  <!-- LEFT -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
       <div>
-        <div class="section-title">Status Übersicht</div>
-        <div class="section-sub">So sehen Sie sofort, wo Ihre Bestellungen stehen.</div>
+        <h2 style="margin:0;">Dashboard</h2>
+        <div class="small-note"><%= shopMode ? "Filial-Übersicht (nur Ihre Bestellungen)" : "Übersicht & Schnellaktionen" %></div>
       </div>
-      <div class="spacer"></div>
-      <a class="btn btn-sm btn-primary" href="/orders#new"><span class="btn-icon"></span>Neue Bestellung</a>
+
+      <span class="pill ok">
+        <span class="dot"></span>
+        <%= shopMode ? ("Filiale: " + shopId) : "Admin" %>
+      </span>
     </div>
 
-    <div class="section-body">
-      <div class="card-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
-        <div class="card">
-          <h2>Eingegangen</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= n(shopStatusCounts && shopStatusCounts.EINGEGANGEN) %></strong></p>
-        </div>
-        <div class="card">
-          <h2>Freigegeben</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= n(shopStatusCounts && shopStatusCounts.FREIGEGEBEN) %></strong></p>
-        </div>
-        <div class="card">
-          <h2>In Produktion</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= n(shopStatusCounts && shopStatusCounts.IN_PRODUKTION) %></strong></p>
-        </div>
-        <div class="card">
-          <h2>Verpackt</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= n(shopStatusCounts && shopStatusCounts.VERPACKT) %></strong></p>
-        </div>
-        <div class="card">
-          <h2>Ausgeliefert</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= n(shopStatusCounts && shopStatusCounts.AUSGELIEFERT) %></strong></p>
-        </div>
+    <div class="kpi-grid mt-3">
+      <div class="kpi">
+        <div class="k"><%= shopMode ? "Ihre Bestellungen" : "Bestellungen" %></div>
+        <div class="v"><%= ordersCount %></div>
       </div>
 
-      <div class="card mt-4">
-        <h2>Was kann ich hier tun?</h2>
-        <p>
-          1) Neue Bestellung anlegen<br/>
-          2) Status verfolgen (Eingegangen → Freigegeben → …)<br/>
-          3) Bei Fragen: Bestell-ID notieren und an Rösterei schicken
-        </p>
-        <div class="row mt-3">
-          <a class="btn btn-primary" href="/orders"><span class="btn-icon"></span>Zu meinen Bestellungen</a>
-          <a class="btn btn-ghost" href="/orders#new">Neue Bestellung</a>
+      <% if (!shopMode) { %>
+        <div class="kpi">
+          <div class="k">Bedarf Positionen</div>
+          <div class="v"><%= demandCount %></div>
         </div>
+        <div class="kpi">
+          <div class="k">Chargen</div>
+          <div class="v"><%= batchCount %></div>
+        </div>
+        <div class="kpi">
+          <div class="k">Aktivität (letzte)</div>
+          <div class="v"><%= activityCount %></div>
+        </div>
+      <% } else { %>
+        <div class="kpi">
+          <div class="k">Nächste Lieferung</div>
+          <div class="v mono"><%= shopNextDelivery ? shopNextDelivery : "-" %></div>
+        </div>
+        <div class="kpi">
+          <div class="k">Status Überblick</div>
+          <div class="v"><%= shopStatusCounts ? (shopStatusCounts["EINGEGANGEN"] + shopStatusCounts["FREIGEGEBEN"] + shopStatusCounts["IN_PRODUKTION"] + shopStatusCounts["VERPACKT"]) : 0 %></div>
+        </div>
+        <div class="kpi">
+          <div class="k">Letztes Update</div>
+          <div class="v mono"><%= inventoryUpdatedAt ? monoTs(inventoryUpdatedAt) : "-" %></div>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="panel mt-3">
+      <h3>Schnellaktionen</h3>
+      <p>Große Buttons, tabletfreundlich. Alles Wichtige mit 1 Klick.</p>
+
+      <div class="action-grid mt-3">
+        <a class="action" href="/orders">
+          <div class="t">Bestellungen</div>
+          <div class="d"><%= shopMode ? "Neue Bestellung anlegen & Status verfolgen." : "Bestellungen prüfen, freigeben, ausliefern." %></div>
+        </a>
+
+        <% if (!shopMode) { %>
+          <a class="action" href="/production">
+            <div class="t">Produktion</div>
+            <div class="d">Bedarf ansehen, rösten, PDF drucken.</div>
+          </a>
+
+          <a class="action" href="/inventory">
+            <div class="t">Lager</div>
+            <div class="d">Roh/Röst Bestände, Wareneingang, Bewegungen.</div>
+          </a>
+        <% } else { %>
+          <a class="action" href="/orders">
+            <div class="t">Offene Bestellungen</div>
+            <div class="d">Dringende Bestellungen stehen oben.</div>
+          </a>
+
+          <a class="action" href="/orders">
+            <div class="t">PDF drucken</div>
+            <div class="d">Bestell-PDF direkt im Detail.</div>
+          </a>
+        <% } %>
       </div>
     </div>
   </div>
 
-<% } else { %>
-
-  <!-- ADMIN dashboard (existing enhanced version) -->
-  <div class="card-grid">
-    <div class="card">
-      <h2>Heute im Blick</h2>
-      <p>Dashboard ist dein Kontrollzentrum: schnelle Übersicht, klare Aktionen, weniger Hin und Her zwischen Seiten.</p>
-    </div>
-
-    <div class="card">
-      <h2>Status</h2>
-      <p>
-        Letztes Lager-Update: <span class="mono"><%= fmt(inventoryUpdatedAt) %></span><br/>
-        Aktivität (Log): <strong><%= activityCount %></strong> Einträge
-      </p>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-head">
+  <!-- RIGHT -->
+  <div class="card">
+    <div class="rowTop">
       <div>
-        <div class="section-title">KPIs</div>
-        <div class="section-sub">Schnelle Zahlen. Ziel: sofort wissen, wo der Fokus liegt.</div>
+        <h2 style="margin:0;"><%= shopMode ? "Status" : "Heute" %></h2>
+        <div class="small-note"><%= shopMode ? "Schneller Überblick über Ihre offenen Bestellungen." : "Hinweise & Fokus für den Tag." %></div>
       </div>
-      <div class="spacer"></div>
-      <a class="btn btn-sm btn-ghost" href="/activity">Audit Log</a>
+      <span class="pill">
+        <span class="dot"></span>
+        <span class="mono"><%= monoTs(new Date().toISOString()) %></span>
+      </span>
     </div>
 
-    <div class="section-body">
-      <div class="card-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
-        <div class="card">
-          <h2>Bestellungen</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= ordersCount %></strong><br/><span class="small-note">gesamt</span></p>
-          <div class="row mt-3">
-            <a class="btn btn-sm btn-primary" href="/orders"><span class="btn-icon"></span>Öffnen</a>
+    <% if (shopMode && shopStatusCounts) { %>
+      <div class="list mt-3">
+        <div class="item">
+          <div style="font-weight:950;">Offen</div>
+          <div class="small-note" style="margin-top:8px;">
+            Eingegangen: <span class="mono"><%= shopStatusCounts["EINGEGANGEN"] || 0 %></span><br/>
+            Freigegeben: <span class="mono"><%= shopStatusCounts["FREIGEGEBEN"] || 0 %></span><br/>
+            In Produktion: <span class="mono"><%= shopStatusCounts["IN_PRODUKTION"] || 0 %></span><br/>
+            Verpackt: <span class="mono"><%= shopStatusCounts["VERPACKT"] || 0 %></span>
+          </div>
+          <div class="small-note" style="margin-top:10px; opacity:.75;">
+            Ausgeliefert: <span class="mono"><%= shopStatusCounts["AUSGELIEFERT"] || 0 %></span>
           </div>
         </div>
 
-        <div class="card">
-          <h2>Bedarf</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= demandCount %></strong><br/><span class="small-note">Sorten</span></p>
-          <div class="row mt-3">
-            <a class="btn btn-sm btn-primary" href="/production"><span class="btn-icon"></span>Planen</a>
+        <div class="item">
+          <div style="font-weight:950;">Nächste Lieferung</div>
+          <div class="small-note" style="margin-top:8px;">
+            <span class="mono"><%= shopNextDelivery ? shopNextDelivery : "-" %></span>
+          </div>
+          <div class="small-note" style="margin-top:10px;">
+            Tipp: Bestellungen mit nahen Lieferdaten stehen oben in der Liste.
           </div>
         </div>
 
-        <div class="card">
-          <h2>Chargen</h2>
-          <p><strong class="mono" style="font-size:22px;"><%= batchCount %></strong><br/><span class="small-note">im System</span></p>
-          <div class="row mt-3">
-            <a class="btn btn-sm btn-primary" href="/production"><span class="btn-icon"></span>Tracken</a>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Lager</h2>
-          <p><strong class="mono" style="font-size:22px;">OK</strong><br/><span class="small-note">Details im Lager</span></p>
-          <div class="row mt-3">
-            <a class="btn btn-sm btn-primary" href="/inventory"><span class="btn-icon"></span>Prüfen</a>
-          </div>
+        <div class="panel">
+          <h3>Seitenhinweis</h3>
+          <p>Filialen können Bestellungen anlegen und Status verfolgen. Freigabe, Produktion und Auslieferung übernimmt die Rösterei.</p>
         </div>
       </div>
-    </div>
+
+    <% } else { %>
+
+      <div class="list mt-3">
+        <div class="item">
+          <div style="font-weight:950;">Fokus</div>
+          <div class="small-note" style="margin-top:8px;">
+            1) Bestellungen prüfen und freigeben<br/>
+            2) Bedarf rösten (Produktion)<br/>
+            3) Lagerstände kontrollieren
+          </div>
+        </div>
+
+        <div class="item">
+          <div style="font-weight:950;">Systemstatus</div>
+          <div class="small-note" style="margin-top:8px;">
+            Betrieb normal.<br/>
+            Letztes Lager-/Aktivitäts-Update: <span class="mono"><%= inventoryUpdatedAt ? monoTs(inventoryUpdatedAt) : "-" %></span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Seitenhinweis</h3>
+          <p>Startpunkt ist meistens Bestellungen → Produktion → Lager. Aktivität zeigt jede Änderung.</p>
+        </div>
+      </div>
+
+    <% } %>
   </div>
 
-  <div class="section">
-    <div class="section-head">
-      <div>
-        <div class="section-title">Quick Actions</div>
-        <div class="section-sub">Die 3 wichtigsten Aktionen für den Alltag.</div>
-      </div>
-      <div class="spacer"></div>
-      <button class="btn btn-sm btn-ghost" type="button" data-to-top>Nach oben</button>
-    </div>
-
-    <div class="section-body">
-      <div class="card-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
-        <div class="card">
-          <h2>Neue Bestellung</h2>
-          <p>Schnell erfassen und freigeben.</p>
-          <div class="row mt-3">
-            <a class="btn btn-primary" href="/orders#new"><span class="btn-icon"></span>Start</a>
-            <a class="btn btn-ghost" href="/orders">Liste</a>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Bestand ändern</h2>
-          <p>Roh oder Röst korrigieren.</p>
-          <div class="row mt-3">
-            <a class="btn btn-primary" href="/inventory#apply"><span class="btn-icon"></span>Ändern</a>
-            <a class="btn btn-ghost" href="/activity">Log</a>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Charge anlegen</h2>
-          <p>Aus Bedarf eine Charge planen.</p>
-          <div class="row mt-3">
-            <a class="btn btn-primary" href="/production"><span class="btn-icon"></span>Produktion</a>
-            <a class="btn btn-ghost" href="/orders">Freigaben</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<% } %>
+</div>
