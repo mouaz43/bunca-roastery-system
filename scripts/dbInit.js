@@ -7,22 +7,24 @@ function env(name, fallback = "") {
   return (process.env[name] || fallback).trim();
 }
 
-async function ensure(sql) { await db.query(sql); }
+async function ensureTable(sql) {
+  await db.query(sql);
+}
 
 async function upsertCoffee(id, name, packDefaultKg = 1) {
   await db.query(
-    `INSERT INTO coffees (id, name, pack_default_kg, is_active)
-     VALUES ($1,$2,$3, TRUE)
-     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, pack_default_kg=EXCLUDED.pack_default_kg`,
+    `INSERT INTO coffees (id, name, pack_default_kg)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, pack_default_kg = EXCLUDED.pack_default_kg`,
     [id, name, packDefaultKg]
   );
 }
 
 async function upsertShop(id, name) {
   await db.query(
-    `INSERT INTO shops (id, name, is_active)
-     VALUES ($1,$2, TRUE)
-     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name`,
+    `INSERT INTO shops (id, name)
+     VALUES ($1,$2)
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
     [id, name]
   );
 }
@@ -49,24 +51,23 @@ async function upsertUser({ email, name, role, shopId, password }) {
 }
 
 async function main() {
-  await ensure(`
+  // Core tables
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS coffees (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      pack_default_kg NUMERIC DEFAULT 1,
-      is_active BOOLEAN NOT NULL DEFAULT TRUE
+      pack_default_kg NUMERIC DEFAULT 1
     );
   `);
 
-  await ensure(`
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS shops (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      is_active BOOLEAN NOT NULL DEFAULT TRUE
+      name TEXT NOT NULL
     );
   `);
 
-  await ensure(`
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS inventory (
       coffee_id TEXT PRIMARY KEY REFERENCES coffees(id) ON DELETE CASCADE,
       green_kg NUMERIC NOT NULL DEFAULT 0,
@@ -74,7 +75,7 @@ async function main() {
     );
   `);
 
-  await ensure(`
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS orders (
       id UUID PRIMARY KEY,
       channel TEXT NOT NULL,
@@ -87,7 +88,7 @@ async function main() {
     );
   `);
 
-  await ensure(`
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS order_items (
       id UUID PRIMARY KEY,
       order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -97,7 +98,7 @@ async function main() {
     );
   `);
 
-  await ensure(`
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS batches (
       id UUID PRIMARY KEY,
       coffee_id TEXT NOT NULL REFERENCES coffees(id),
@@ -109,7 +110,7 @@ async function main() {
     );
   `);
 
-  await ensure(`
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS activity (
       id UUID PRIMARY KEY,
       at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -118,32 +119,34 @@ async function main() {
     );
   `);
 
-  await ensure(`
+  // NEW: Wareneingang Belege
+  await ensureTable(`
+    CREATE TABLE IF NOT EXISTS inventory_receipts (
+      id UUID PRIMARY KEY,
+      at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      coffee_id TEXT NOT NULL REFERENCES coffees(id),
+      coffee_name TEXT NOT NULL,
+      kg NUMERIC NOT NULL,
+      note TEXT DEFAULT '',
+      actor_email TEXT DEFAULT ''
+    );
+  `);
+
+  // Auth tables
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL,
+      role TEXT NOT NULL, -- ADMIN | SHOP | B2B
       shop_id TEXT NULL REFERENCES shops(id),
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
-  await ensure(`
-    CREATE TABLE IF NOT EXISTS b2b_customers (
-      id UUID PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT DEFAULT '',
-      phone TEXT DEFAULT '',
-      address TEXT DEFAULT '',
-      note TEXT DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-
-  // Session
-  await ensure(`
+  // Session table for connect-pg-simple
+  await ensureTable(`
     CREATE TABLE IF NOT EXISTS "session" (
       "sid" varchar NOT NULL COLLATE "default",
       "sess" json NOT NULL,
@@ -151,10 +154,16 @@ async function main() {
     )
     WITH (OIDS=FALSE);
   `);
-  await ensure(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");`).catch(() => {});
-  await ensure(`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");`);
 
-  // Seed
+  await ensureTable(`
+    ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");
+  `).catch(() => {});
+
+  await ensureTable(`
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+  `);
+
+  // Seed master data
   await upsertShop("CITY", "City");
   await upsertShop("BERGER", "Berger Straße");
   await upsertShop("GRUEN", "Grüneburgweg");
@@ -163,12 +172,25 @@ async function main() {
   await upsertCoffee("FILTER", "Filter Blend", 1);
   await upsertCoffee("DECAF", "Decaf", 1);
 
+  // Ensure inventory rows exist
   const coffees = await db.query(`SELECT id FROM coffees`);
   for (const r of coffees.rows) await upsertInventory(r.id);
 
+  // Seed users
   const adminEmail = env("ADMIN_EMAIL", "admin@bunca.local");
   const adminPass = env("ADMIN_PASSWORD", "Admin123!");
-  await upsertUser({ email: adminEmail, name: "Admin", role: "ADMIN", shopId: null, password: adminPass });
+  await upsertUser({
+    email: adminEmail,
+    name: "Admin",
+    role: "ADMIN",
+    shopId: null,
+    password: adminPass
+  });
+
+  const shopPass = env("SHOP_PASSWORD", "Shop123!");
+  await upsertUser({ email: "city@bunca.local", name: "City", role: "SHOP", shopId: "CITY", password: shopPass });
+  await upsertUser({ email: "berger@bunca.local", name: "Berger Straße", role: "SHOP", shopId: "BERGER", password: shopPass });
+  await upsertUser({ email: "gruen@bunca.local", name: "Grüneburgweg", role: "SHOP", shopId: "GRUEN", password: shopPass });
 
   console.log("DB init done.");
 }
