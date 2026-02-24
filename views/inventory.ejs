@@ -1,41 +1,23 @@
 <%
-  const cards = (typeof cards !== "undefined" && cards) ? cards : [];
-  const moves = (typeof moves !== "undefined" && moves) ? moves : [];
-  const updatedAt = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt : "";
+  var cardsData = (typeof cards !== "undefined" && cards) ? cards : [];
+  var movesData = (typeof moves !== "undefined" && moves) ? moves : [];
+  var updatedAtStr = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt : "";
 %>
 
 <style>
-  .inv-grid{ display:grid; gap:14px; grid-template-columns: 1fr; }
-  @media (min-width:1100px){ .inv-grid{ grid-template-columns: 1.2fr .8fr; } }
+  /* ===== Layout ===== */
+  .inv-shell{ display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:1100px){ .inv-shell{ grid-template-columns: 1.25fr .75fr; } }
 
-  .kpis{ display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
-  @media (min-width:700px){ .kpis{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
-
-  .kpi{
-    border:1px solid rgba(0,0,0,.06);
-    border-radius:18px;
-    padding:12px;
-    background: rgba(255,255,255,.65);
+  .inv-head{
+    display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;
   }
-  .kpi .label{ font-size:12px; opacity:.7; font-weight:900; }
-  .kpi .val{ font-size:18px; font-weight:950; margin-top:6px; }
+  .inv-title{ margin:0; font-weight:950; font-size:22px; }
+  .inv-sub{ margin-top:6px; font-size:13px; opacity:.75; }
 
-  .stock-list{ display:grid; gap:10px; }
-  .stock{
-    border:1px solid rgba(0,0,0,.06);
-    border-radius:18px;
-    padding:12px;
-    background: rgba(255,255,255,.65);
-    display:grid;
-    grid-template-columns: 1fr 140px 140px;
-    gap:10px;
-    align-items:center;
-  }
-  @media (max-width:800px){ .stock{ grid-template-columns:1fr; } }
-  .stock .name{ font-weight:950; }
   .pill{
     display:inline-flex; align-items:center; gap:8px;
-    padding:8px 10px; border-radius:999px;
+    padding:10px 12px; border-radius:999px;
     border:1px solid rgba(0,0,0,.08);
     background: rgba(255,255,255,.55);
     font-weight:900; font-size:12px;
@@ -49,87 +31,309 @@
   .pill.low .dot{ background: rgba(255,77,77,.9); }
 
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  .right{ text-align:right; }
+
+  /* ===== KPI ===== */
+  .kpi-grid{ display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0,1fr)); }
+  @media (min-width:800px){ .kpi-grid{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
+  .kpi{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.65);
+  }
+  .kpi .k{ font-size:12px; opacity:.75; font-weight:900; }
+  .kpi .v{ margin-top:6px; font-weight:950; font-size:18px; }
+
+  /* ===== Stock list ===== */
+  .stock-grid{ display:grid; gap:10px; }
+  .stock-card{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.65);
+    display:grid;
+    grid-template-columns: 1.2fr .4fr .4fr .3fr;
+    gap:10px;
+    align-items:center;
+  }
+  @media (max-width:900px){
+    .stock-card{ grid-template-columns:1fr; }
+  }
+
+  .stock-name{ font-weight:950; }
+  .stock-id{ font-size:12px; opacity:.7; margin-top:4px; }
+  .stat{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;
+    padding:10px;
+    background: rgba(255,255,255,.55);
+  }
+  .stat .k{ font-size:12px; opacity:.75; font-weight:900; }
+  .stat .v{ margin-top:4px; font-size:18px; font-weight:950; }
+
+  .tools{
+    display:flex; gap:10px; flex-wrap:wrap;
+  }
+  .inputBig{ height:46px; border-radius:16px; }
+
+  /* ===== Right column: Actions ===== */
+  .action{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:14px;
+    background: rgba(255,255,255,.65);
+  }
+  .action h3{ margin:0; font-weight:950; font-size:16px; }
+  .action p{ margin:8px 0 0; font-size:13px; opacity:.75; }
+
+  .form{
+    margin-top:12px;
+    display:grid;
+    gap:10px;
+  }
+  .row2{ display:grid; grid-template-columns:1fr 160px; gap:10px; }
+  @media (max-width:700px){ .row2{ grid-template-columns:1fr; } }
+
+  .label{ font-size:12px; opacity:.75; font-weight:900; margin-bottom:6px; }
+  .help{ font-size:12px; opacity:.7; margin-top:6px; }
+
+  details.fold{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.55);
+  }
+  details.fold summary{
+    cursor:pointer;
+    font-weight:950;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  details.fold summary::-webkit-details-marker{ display:none; }
+
+  .move{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;
+    padding:10px;
+    background: rgba(255,255,255,.60);
+    display:flex; justify-content:space-between; gap:10px; align-items:flex-start;
+  }
+  .move .a{ font-weight:950; }
+  .move .t{ font-size:12px; opacity:.7; white-space:nowrap; }
+  .move pre{
+    margin:8px 0 0;
+    font-size:12px;
+    opacity:.75;
+    white-space:pre-wrap;
+  }
 </style>
 
-<div class="inv-grid">
+<div class="inv-shell">
 
+  <!-- LEFT: Overview -->
   <div class="card">
-    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+    <div class="inv-head">
       <div>
-        <h2 style="margin:0;">Lagerübersicht</h2>
-        <div class="small-note">Stand: <span class="mono"><%= updatedAt %></span></div>
+        <h2 class="inv-title">Lager</h2>
+        <div class="inv-sub">Klarer Überblick. Änderungen werden sauber protokolliert.</div>
       </div>
-      <span class="pill ok"><span class="dot"></span>Admin</span>
+      <span class="pill ok"><span class="dot"></span>Update: <span class="mono"><%= updatedAtStr %></span></span>
     </div>
 
-    <div class="kpis mt-3">
+    <div class="kpi-grid mt-3">
       <div class="kpi">
-        <div class="label">Sorten</div>
-        <div class="val"><%= cards.length %></div>
+        <div class="k">Sorten</div>
+        <div class="v"><%= cardsData.length %></div>
       </div>
       <div class="kpi">
-        <div class="label">Warnungen</div>
-        <div class="val"><%= cards.filter(x=>x.level==="warn").length %></div>
+        <div class="k">OK</div>
+        <div class="v"><%= cardsData.filter(x=>x.level==="ok").length %></div>
       </div>
       <div class="kpi">
-        <div class="label">Kritisch</div>
-        <div class="val"><%= cards.filter(x=>x.level==="low").length %></div>
+        <div class="k">Achtung</div>
+        <div class="v"><%= cardsData.filter(x=>x.level==="warn").length %></div>
       </div>
       <div class="kpi">
-        <div class="label">OK</div>
-        <div class="val"><%= cards.filter(x=>x.level==="ok").length %></div>
+        <div class="k">Kritisch</div>
+        <div class="v"><%= cardsData.filter(x=>x.level==="low").length %></div>
       </div>
     </div>
 
-    <div class="stock-list mt-3">
-      <% cards.forEach(c => { %>
-        <div class="stock">
+    <div class="tools mt-3">
+      <input class="input inputBig" id="search" placeholder="Suche Sorte (Name oder ID)..." style="min-width:260px;" />
+      <button class="btn btn-ghost" type="button" id="filterOk">Nur OK</button>
+      <button class="btn btn-ghost" type="button" id="filterWarn">Achtung/Kritisch</button>
+      <button class="btn btn-ghost" type="button" id="filterAll">Alle</button>
+    </div>
+
+    <div class="stock-grid mt-3" id="stockGrid">
+      <% cardsData.forEach(c => {
+           var cls = c.level==="low" ? "pill low" : (c.level==="warn" ? "pill warn" : "pill ok");
+      %>
+        <div class="stock-card" data-name="<%= (c.name||'').toLowerCase() %>" data-id="<%= (c.id||'').toLowerCase() %>" data-level="<%= c.level %>">
           <div>
-            <div class="name"><%= c.name %></div>
-            <div class="small-note mono"><%= c.id %> · Pack <%= (c.packDefaultKg||1) %>kg</div>
+            <div class="stock-name"><%= c.name %></div>
+            <div class="stock-id mono"><%= c.id %> · Pack <%= (c.packDefaultKg||1) %>kg</div>
           </div>
 
-          <div>
-            <div class="small-note">Grün (kg)</div>
-            <div class="mono" style="font-weight:950;"><%= (c.green||0).toFixed(1) %></div>
+          <div class="stat">
+            <div class="k">Rohkaffee</div>
+            <div class="v"><span class="mono"><%= (Number(c.green||0)).toFixed(1) %></span> kg</div>
           </div>
 
-          <div>
-            <div class="small-note">Röst (kg)</div>
-            <div class="mono" style="font-weight:950;"><%= (c.roasted||0).toFixed(1) %></div>
+          <div class="stat">
+            <div class="k">Röstkaffee</div>
+            <div class="v"><span class="mono"><%= (Number(c.roasted||0)).toFixed(1) %></span> kg</div>
           </div>
 
-          <div style="grid-column: 1/-1;">
-            <span class="pill <%= c.level %>">
-              <span class="dot"></span>
-              <%= c.level==="ok" ? "OK" : (c.level==="warn" ? "Achtung" : "Kritisch") %>
-            </span>
+          <div style="display:flex; justify-content:flex-end;">
+            <span class="<%= cls %>"><span class="dot"></span><%= c.level==="ok" ? "OK" : (c.level==="warn" ? "Achtung" : "Kritisch") %></span>
           </div>
         </div>
       <% }) %>
     </div>
+
+    <details class="fold mt-3">
+      <summary>
+        <span>Letzte Lager-Aktionen</span>
+        <span style="opacity:.6;">▼</span>
+      </summary>
+
+      <div class="mt-3" style="display:grid; gap:10px;">
+        <% if (!movesData.length) { %>
+          <div class="small-note">Noch keine Lager-Aktionen vorhanden.</div>
+        <% } %>
+
+        <% movesData.forEach(m => { %>
+          <div class="move">
+            <div style="min-width:0;">
+              <div class="a"><%= m.action %></div>
+              <pre class="mono"><%= JSON.stringify(m.meta || {}, null, 2) %></pre>
+            </div>
+            <div class="t mono"><%= m.at %></div>
+          </div>
+        <% }) %>
+      </div>
+    </details>
   </div>
 
-  <div class="card">
-    <h2 style="margin:0;">Letzte Lagerbewegungen</h2>
-    <div class="small-note">Die letzten 10 Aktionen (Wareneingang/Korrektur/Move).</div>
+  <!-- RIGHT: Actions (clean, minimal) -->
+  <div style="display:grid; gap:14px;">
+    <div class="action">
+      <h3>Wareneingang (Rohkaffee rein)</h3>
+      <p>Eine schnelle Buchung. Später kommt automatisch ein Wareneingang-PDF dazu.</p>
 
-    <div class="mt-3" style="display:grid; gap:10px;">
-      <% if (!moves.length) { %>
-        <div class="small-note">Noch keine Lager-Aktionen vorhanden.</div>
-      <% } %>
+      <form class="form" method="POST" action="/actions/inventory/apply">
+        <input type="hidden" name="type" value="GREEN" />
 
-      <% moves.forEach(m => { %>
-        <div class="order-card">
-          <div class="row" style="justify-content:space-between;">
-            <div style="font-weight:950;"><%= m.action %></div>
-            <div class="mono small-note"><%= m.at %></div>
+        <div class="row2">
+          <div>
+            <div class="label">Sorte</div>
+            <select class="select inputBig" name="coffeeId" required>
+              <option value="">Bitte wählen</option>
+              <% cardsData.forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %> (<%= c.id %>)</option>
+              <% }) %>
+            </select>
           </div>
-          <pre class="mono small-note" style="white-space:pre-wrap; margin:10px 0 0;"><%= JSON.stringify(m.meta || {}, null, 2) %></pre>
+          <div>
+            <div class="label">kg (Plus)</div>
+            <input class="input inputBig" name="deltaKg" type="number" step="0.1" min="0" placeholder="z.B. 25" required />
+          </div>
         </div>
-      <% }) %>
+
+        <div>
+          <div class="label">Notiz (optional)</div>
+          <input class="input inputBig" name="note" placeholder="Lieferant / Rechnung / Charge" />
+          <div class="help">Tipp: Wenn du die Notiz pflegst, wird es später im PDF automatisch angezeigt.</div>
+        </div>
+
+        <button class="btn btn-primary" type="submit" style="height:46px; border-radius:18px;">Speichern</button>
+      </form>
+    </div>
+
+    <div class="action">
+      <h3>Korrektur (Plus/Minus)</h3>
+      <p>Nur falls nötig (Inventur, Bruch, Probe). Wird protokolliert.</p>
+
+      <form class="form" method="POST" action="/actions/inventory/apply">
+        <div class="row2">
+          <div>
+            <div class="label">Typ</div>
+            <select class="select inputBig" name="type" required>
+              <option value="GREEN">Rohkaffee</option>
+              <option value="ROASTED">Röstkaffee</option>
+            </select>
+          </div>
+          <div>
+            <div class="label">kg (Plus/Minus)</div>
+            <input class="input inputBig" name="deltaKg" type="number" step="0.1" placeholder="z.B. -0.5" required />
+          </div>
+        </div>
+
+        <div>
+          <div class="label">Sorte</div>
+          <select class="select inputBig" name="coffeeId" required>
+            <option value="">Bitte wählen</option>
+            <% cardsData.forEach(c => { %>
+              <option value="<%= c.id %>"><%= c.name %> (<%= c.id %>)</option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div>
+          <div class="label">Notiz (optional)</div>
+          <input class="input inputBig" name="note" placeholder="z.B. Probe / Bruch / Inventur" />
+        </div>
+
+        <button class="btn btn-ghost" type="submit" style="height:46px; border-radius:18px;">Korrektur speichern</button>
+      </form>
+    </div>
+
+    <div class="action">
+      <h3>Nächster Schritt: Rösten (smart)</h3>
+      <p>Wir bauen eine super einfache Rösten-Aktion: Roh → Röst (mit Yield). Dazu kommt ein Röstprotokoll-PDF.</p>
+      <div class="small-note">Wir machen es erst, wenn diese Seite 100% ruhig & klar wirkt.</div>
     </div>
   </div>
 
 </div>
+
+<script>
+  const grid = document.getElementById("stockGrid");
+  const search = document.getElementById("search");
+  const btnOk = document.getElementById("filterOk");
+  const btnWarn = document.getElementById("filterWarn");
+  const btnAll = document.getElementById("filterAll");
+
+  function applyFilter() {
+    const q = (search.value || "").toLowerCase().trim();
+    const mode = grid.getAttribute("data-mode") || "all";
+
+    const cards = Array.from(grid.querySelectorAll(".stock-card"));
+    cards.forEach(el => {
+      const name = el.getAttribute("data-name") || "";
+      const id = el.getAttribute("data-id") || "";
+      const level = el.getAttribute("data-level") || "ok";
+
+      const matchText = !q || name.includes(q) || id.includes(q);
+      const matchMode =
+        mode === "all" ? true :
+        mode === "ok" ? level === "ok" :
+        (level === "warn" || level === "low");
+
+      el.style.display = (matchText && matchMode) ? "" : "none";
+    });
+  }
+
+  if (search) search.addEventListener("input", applyFilter);
+
+  if (btnOk) btnOk.addEventListener("click", () => { grid.setAttribute("data-mode","ok"); applyFilter(); });
+  if (btnWarn) btnWarn.addEventListener("click", () => { grid.setAttribute("data-mode","warn"); applyFilter(); });
+  if (btnAll) btnAll.addEventListener("click", () => { grid.setAttribute("data-mode","all"); applyFilter(); });
+
+  if (grid) grid.setAttribute("data-mode","all");
+</script>
