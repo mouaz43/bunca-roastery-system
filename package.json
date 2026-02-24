@@ -1,18 +1,19 @@
 {
   "name": "bunca-roastery-system",
   "version": "1.0.0",
+  "description": "Bunca Rösterei Produktions- und Bestellsystem",
   "main": "server.js",
-  "license": "UNLICENSED",
   "scripts": {
     "start": "node scripts/dbInit.js && node server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "connect-pg-simple": "^10.0.0",
+    "connect-pg-simple": "^9.0.1",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "express-ejs-layouts": "^2.5.1",
     "express-session": "^1.18.1",
+    "pdfkit": "^0.15.0",
     "pg": "^8.13.1"
   }
 }
