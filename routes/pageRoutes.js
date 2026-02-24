@@ -7,31 +7,96 @@ const inventoryController = require("../controllers/inventoryController");
 const pdfController = require("../controllers/pdfController");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
-const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+// Safe wrap: throws a readable error if handler is missing
+const safe = (handler, name) => {
+  if (typeof handler !== "function") {
+    return (req, res) => {
+      res.status(500).send(`
+        <h1>Route-Fehler</h1>
+        <p>Handler <b>${name}</b> ist nicht definiert oder kein Function.</p>
+        <p>Bitte prüfe exports in controllers/pageController.js</p>
+      `);
+    };
+  }
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+};
 
-// Root: send to dashboard if logged in, otherwise login
+// Root
 router.get("/", (req, res) => {
   if (req.session && req.session.user) return res.redirect("/dashboard");
   return res.redirect("/login");
 });
 
-// Login / Logout
-router.get("/login", wrap(pageController.renderLogin));
-router.post("/login", wrap(pageController.handleLogin));
-router.post("/logout", wrap(pageController.handleLogout));
+// LOGIN/LOGOUT: support multiple naming styles
+router.get(
+  "/login",
+  safe(pageController.renderLogin || pageController.login || pageController.getLogin, "pageController.renderLogin")
+);
+
+router.post(
+  "/login",
+  safe(pageController.handleLogin || pageController.postLogin || pageController.loginPost, "pageController.handleLogin")
+);
+
+router.post(
+  "/logout",
+  safe(pageController.handleLogout || pageController.logout || pageController.postLogout, "pageController.handleLogout")
+);
 
 // Main pages
-router.get("/dashboard", requireAuth, wrap(pageController.renderDashboard));
-router.get("/orders", requireAuth, wrap(pageController.renderOrders));
-router.get("/production", requireAuth, requireRole("ADMIN"), wrap(pageController.renderProduction));
-router.get("/analytics", requireAuth, requireRole("ADMIN"), wrap(pageController.renderAnalytics));
-router.get("/settings", requireAuth, requireRole("ADMIN"), wrap(pageController.renderSettings));
-router.get("/activity", requireAuth, requireRole("ADMIN"), wrap(pageController.renderActivity));
+router.get(
+  "/dashboard",
+  requireAuth,
+  safe(pageController.renderDashboard || pageController.dashboard, "pageController.renderDashboard")
+);
 
-// Inventory (Admin only) — now via inventoryController
-router.get("/inventory", requireAuth, requireRole("ADMIN"), wrap(inventoryController.renderInventory));
+router.get(
+  "/orders",
+  requireAuth,
+  safe(pageController.renderOrders || pageController.orders, "pageController.renderOrders")
+);
 
-// PDF (Order)
-router.get("/orders/:id/pdf", requireAuth, wrap(pdfController.orderPdf));
+router.get(
+  "/production",
+  requireAuth,
+  requireRole("ADMIN"),
+  safe(pageController.renderProduction || pageController.production, "pageController.renderProduction")
+);
+
+router.get(
+  "/analytics",
+  requireAuth,
+  requireRole("ADMIN"),
+  safe(pageController.renderAnalytics || pageController.analytics, "pageController.renderAnalytics")
+);
+
+router.get(
+  "/settings",
+  requireAuth,
+  requireRole("ADMIN"),
+  safe(pageController.renderSettings || pageController.settings, "pageController.renderSettings")
+);
+
+router.get(
+  "/activity",
+  requireAuth,
+  requireRole("ADMIN"),
+  safe(pageController.renderActivity || pageController.activity, "pageController.renderActivity")
+);
+
+// Inventory (Admin only)
+router.get(
+  "/inventory",
+  requireAuth,
+  requireRole("ADMIN"),
+  safe(inventoryController.renderInventory, "inventoryController.renderInventory")
+);
+
+// PDF
+router.get(
+  "/orders/:id/pdf",
+  requireAuth,
+  safe(pdfController.orderPdf, "pdfController.orderPdf")
+);
 
 module.exports = router;
