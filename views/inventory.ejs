@@ -1,239 +1,135 @@
 <%
-  var cards = (typeof cards !== "undefined" && cards) ? cards : [];
-  var moves = (typeof moves !== "undefined" && moves) ? moves : [];
-  var updatedAt = (typeof updatedAt !== "undefined") ? updatedAt : "";
+  const cards = (typeof cards !== "undefined" && cards) ? cards : [];
+  const moves = (typeof moves !== "undefined" && moves) ? moves : [];
+  const updatedAt = (typeof updatedAt !== "undefined" && updatedAt) ? updatedAt : "";
 %>
 
 <style>
-  .inv-grid{ display:grid; gap:14px; grid-template-columns:1fr; }
+  .inv-grid{ display:grid; gap:14px; grid-template-columns: 1fr; }
   @media (min-width:1100px){ .inv-grid{ grid-template-columns: 1.2fr .8fr; } }
 
-  .cards{ display:grid; gap:12px; grid-template-columns: 1fr; }
-  @media (min-width:700px){ .cards{ grid-template-columns: 1fr 1fr; } }
+  .kpis{ display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (min-width:700px){ .kpis{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
 
-  .stock-card{
+  .kpi{
     border:1px solid rgba(0,0,0,.06);
-    background: rgba(255,255,255,.6);
     border-radius:18px;
-    padding:14px;
+    padding:12px;
+    background: rgba(255,255,255,.65);
   }
-  .stock-top{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-  .stock-name{ font-weight:950; font-size:16px; }
-  .stock-id{ font-size:12px; opacity:.7; }
-  .tag{
+  .kpi .label{ font-size:12px; opacity:.7; font-weight:900; }
+  .kpi .val{ font-size:18px; font-weight:950; margin-top:6px; }
+
+  .stock-list{ display:grid; gap:10px; }
+  .stock{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.65);
+    display:grid;
+    grid-template-columns: 1fr 140px 140px;
+    gap:10px;
+    align-items:center;
+  }
+  @media (max-width:800px){ .stock{ grid-template-columns:1fr; } }
+  .stock .name{ font-weight:950; }
+  .pill{
     display:inline-flex; align-items:center; gap:8px;
     padding:8px 10px; border-radius:999px;
     border:1px solid rgba(0,0,0,.08);
-    background: rgba(255,255,255,.5);
-    font-weight:900; font-size:12px;
-    white-space:nowrap;
-  }
-  .tag .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
-  .tag.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
-  .tag.ok .dot{ background: rgba(38,201,122,.9); }
-  .tag.warn{ border-color: rgba(255,170,0,.35); background: rgba(255,170,0,.10); }
-  .tag.warn .dot{ background: rgba(255,170,0,.95); }
-  .tag.low{ border-color: rgba(255,77,77,.35); background: rgba(255,77,77,.10); }
-  .tag.low .dot{ background: rgba(255,77,77,.95); }
-
-  .kv{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px; }
-  .k{ border:1px solid rgba(0,0,0,.06); border-radius:16px; padding:10px; background: rgba(255,255,255,.55); }
-  .k .l{ font-size:12px; opacity:.7; font-weight:900; }
-  .k .v{ margin-top:4px; font-size:18px; font-weight:950; }
-  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-  .actions{ display:grid; gap:14px; }
-  .action-card{ border:1px solid rgba(0,0,0,.06); border-radius:18px; padding:14px; background: rgba(255,255,255,.6); }
-  .action-title{ font-weight:950; font-size:16px; margin:0; }
-  .action-sub{ margin-top:6px; font-size:13px; opacity:.75; }
-  .form-grid{ display:grid; gap:10px; margin-top:12px; }
-  .row2{ display:grid; grid-template-columns: 1fr 160px; gap:10px; }
-  @media (max-width:700px){ .row2{ grid-template-columns: 1fr; } }
-  .label{ font-size:12px; opacity:.75; font-weight:900; margin-bottom:6px; }
-
-  details.collapse{
-    border:1px solid rgba(0,0,0,.06);
-    border-radius:18px;
     background: rgba(255,255,255,.55);
-    padding:12px;
+    font-weight:900; font-size:12px;
   }
-  details.collapse summary{
-    cursor:pointer;
-    font-weight:950;
-    list-style:none;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-  }
-  details.collapse summary::-webkit-details-marker{ display:none; }
-  .chev{ opacity:.55; font-weight:950; }
+  .pill .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
+  .pill.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
+  .pill.ok .dot{ background: rgba(38,201,122,.9); }
+  .pill.warn{ border-color: rgba(255,168,0,.35); background: rgba(255,168,0,.10); }
+  .pill.warn .dot{ background: rgba(255,168,0,.95); }
+  .pill.low{ border-color: rgba(255,77,77,.35); background: rgba(255,77,77,.08); }
+  .pill.low .dot{ background: rgba(255,77,77,.9); }
 
-  .move{
-    border:1px solid rgba(0,0,0,.06);
-    border-radius:16px;
-    padding:10px;
-    background: rgba(255,255,255,.6);
-    display:flex;
-    justify-content:space-between;
-    gap:10px;
-    align-items:flex-start;
-  }
-  .move .left{ min-width:0; }
-  .move .a{ font-weight:950; }
-  .move .m{ font-size:12px; opacity:.75; margin-top:4px; }
-  .move .t{ font-size:12px; opacity:.7; white-space:nowrap; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  .right{ text-align:right; }
 </style>
 
 <div class="inv-grid">
 
-  <!-- LEFT: Overview -->
   <div class="card">
     <div class="row" style="justify-content:space-between; align-items:flex-start;">
       <div>
         <h2 style="margin:0;">Lagerübersicht</h2>
-        <div class="small-note">Schneller Überblick. Details nur wenn nötig.</div>
+        <div class="small-note">Stand: <span class="mono"><%= updatedAt %></span></div>
       </div>
-      <div class="tag ok"><span class="dot"></span>Update: <span class="mono"><%= updatedAt %></span></div>
+      <span class="pill ok"><span class="dot"></span>Admin</span>
     </div>
 
-    <div class="cards mt-3">
-      <% for (var i=0;i<cards.length;i++) { 
-           var c = cards[i];
-           var tagCls = c.level === "low" ? "tag low" : (c.level === "warn" ? "tag warn" : "tag ok");
-      %>
-        <div class="stock-card">
-          <div class="stock-top">
-            <div style="min-width:0;">
-              <div class="stock-name"><%= c.name %></div>
-              <div class="stock-id mono"><%= c.id %> · Pack <%= c.packDefaultKg %>kg</div>
-            </div>
-            <span class="<%= tagCls %>"><span class="dot"></span><%= c.level === "ok" ? "OK" : (c.level === "warn" ? "Niedrig" : "Kritisch") %></span>
+    <div class="kpis mt-3">
+      <div class="kpi">
+        <div class="label">Sorten</div>
+        <div class="val"><%= cards.length %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Warnungen</div>
+        <div class="val"><%= cards.filter(x=>x.level==="warn").length %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Kritisch</div>
+        <div class="val"><%= cards.filter(x=>x.level==="low").length %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">OK</div>
+        <div class="val"><%= cards.filter(x=>x.level==="ok").length %></div>
+      </div>
+    </div>
+
+    <div class="stock-list mt-3">
+      <% cards.forEach(c => { %>
+        <div class="stock">
+          <div>
+            <div class="name"><%= c.name %></div>
+            <div class="small-note mono"><%= c.id %> · Pack <%= (c.packDefaultKg||1) %>kg</div>
           </div>
 
-          <div class="kv">
-            <div class="k">
-              <div class="l">Rohkaffee</div>
-              <div class="v"><span class="mono"><%= (Math.round(c.green*10)/10).toFixed(1) %></span> kg</div>
-            </div>
-            <div class="k">
-              <div class="l">Röstkaffee</div>
-              <div class="v"><span class="mono"><%= (Math.round(c.roasted*10)/10).toFixed(1) %></span> kg</div>
-            </div>
+          <div>
+            <div class="small-note">Grün (kg)</div>
+            <div class="mono" style="font-weight:950;"><%= (c.green||0).toFixed(1) %></div>
+          </div>
+
+          <div>
+            <div class="small-note">Röst (kg)</div>
+            <div class="mono" style="font-weight:950;"><%= (c.roasted||0).toFixed(1) %></div>
+          </div>
+
+          <div style="grid-column: 1/-1;">
+            <span class="pill <%= c.level %>">
+              <span class="dot"></span>
+              <%= c.level==="ok" ? "OK" : (c.level==="warn" ? "Achtung" : "Kritisch") %>
+            </span>
           </div>
         </div>
-      <% } %>
+      <% }) %>
     </div>
-
-    <details class="collapse mt-3">
-      <summary>
-        <span>Letzte Buchungen</span>
-        <span class="chev">▼</span>
-      </summary>
-
-      <div class="mt-3" style="display:grid; gap:10px;">
-        <% if (!moves.length) { %>
-          <div class="small-note">Noch keine Lager-Buchungen.</div>
-        <% } %>
-
-        <% for (var m=0;m<moves.length;m++) { %>
-          <div class="move">
-            <div class="left">
-              <div class="a"><%= moves[m].action %></div>
-              <div class="m mono"><%= JSON.stringify(moves[m].meta || {}) %></div>
-            </div>
-            <div class="t mono"><%= moves[m].at %></div>
-          </div>
-        <% } %>
-      </div>
-    </details>
-
   </div>
 
-  <!-- RIGHT: Actions -->
-  <div class="actions">
+  <div class="card">
+    <h2 style="margin:0;">Letzte Lagerbewegungen</h2>
+    <div class="small-note">Die letzten 10 Aktionen (Wareneingang/Korrektur/Move).</div>
 
-    <!-- Wareneingang -->
-    <div class="action-card">
-      <h3 class="action-title">Wareneingang</h3>
-      <div class="action-sub">Rohkaffee kommt rein. Schnell eintragen, Lager wird automatisch aktualisiert.</div>
+    <div class="mt-3" style="display:grid; gap:10px;">
+      <% if (!moves.length) { %>
+        <div class="small-note">Noch keine Lager-Aktionen vorhanden.</div>
+      <% } %>
 
-      <form method="POST" action="/actions/inventory/apply" class="form-grid">
-        <div class="row2">
-          <div>
-            <div class="label">Sorte</div>
-            <select class="select" name="coffeeId" required>
-              <option value="">Bitte wählen</option>
-              <% for (var i=0;i<cards.length;i++) { %>
-                <option value="<%= cards[i].id %>"><%= cards[i].name %> (<%= cards[i].id %>)</option>
-              <% } %>
-            </select>
+      <% moves.forEach(m => { %>
+        <div class="order-card">
+          <div class="row" style="justify-content:space-between;">
+            <div style="font-weight:950;"><%= m.action %></div>
+            <div class="mono small-note"><%= m.at %></div>
           </div>
-
-          <div>
-            <div class="label">kg (Plus)</div>
-            <input class="input" name="deltaKg" type="number" step="0.1" min="0" placeholder="z.B. 25" required />
-          </div>
+          <pre class="mono small-note" style="white-space:pre-wrap; margin:10px 0 0;"><%= JSON.stringify(m.meta || {}, null, 2) %></pre>
         </div>
-
-        <input type="hidden" name="type" value="GREEN" />
-        <div>
-          <div class="label">Notiz (optional)</div>
-          <input class="input" name="note" placeholder="z.B. Lieferant / Rechnung / Charge" />
-        </div>
-
-        <button class="btn btn-primary" type="submit" style="height:46px; border-radius:18px;">Speichern</button>
-      </form>
+      <% }) %>
     </div>
-
-    <!-- Korrektur -->
-    <div class="action-card">
-      <h3 class="action-title">Korrektur</h3>
-      <div class="action-sub">Nur wenn nötig: Verlust, Probe, Korrektur. Wird protokolliert.</div>
-
-      <form method="POST" action="/actions/inventory/apply" class="form-grid">
-        <div class="row2">
-          <div>
-            <div class="label">Bestandstyp</div>
-            <select class="select" name="type" required>
-              <option value="GREEN">Rohkaffee</option>
-              <option value="ROASTED">Röstkaffee</option>
-            </select>
-          </div>
-
-          <div>
-            <div class="label">kg (Plus/Minus)</div>
-            <input class="input" name="deltaKg" type="number" step="0.1" placeholder="z.B. -0.5 oder 2" required />
-          </div>
-        </div>
-
-        <div>
-          <div class="label">Sorte</div>
-          <select class="select" name="coffeeId" required>
-            <option value="">Bitte wählen</option>
-            <% for (var i=0;i<cards.length;i++) { %>
-              <option value="<%= cards[i].id %>"><%= cards[i].name %> (<%= cards[i].id %>)</option>
-            <% } %>
-          </select>
-        </div>
-
-        <div>
-          <div class="label">Notiz (optional)</div>
-          <input class="input" name="note" placeholder="z.B. Bruch, Probe, Inventur" />
-        </div>
-
-        <button class="btn btn-ghost" type="submit" style="height:46px; border-radius:18px;">Korrektur speichern</button>
-      </form>
-    </div>
-
-    <div class="action-card">
-      <h3 class="action-title">Nächster Schritt</h3>
-      <div class="action-sub">
-        Rösten wird hier als super einfache Aktion integriert (Roh → Röst) und erzeugt automatisch ein PDF “Röstprotokoll”.
-      </div>
-      <div class="small-note">Erst wenn diese Übersicht “ruhig” wirkt, erweitern wir die Logik.</div>
-    </div>
-
   </div>
 
 </div>
