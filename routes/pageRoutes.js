@@ -8,22 +8,29 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Auth / Login
-router.get("/", wrap(pageController.renderHome));
+// Root: send to dashboard if logged in, otherwise login
+router.get("/", (req, res) => {
+  if (req.session && req.session.user) return res.redirect("/dashboard");
+  return res.redirect("/login");
+});
+
+// Login / Logout
 router.get("/login", wrap(pageController.renderLogin));
 router.post("/login", wrap(pageController.handleLogin));
 router.post("/logout", wrap(pageController.handleLogout));
 
-// Pages
+// Main pages (must exist in your controller)
 router.get("/dashboard", requireAuth, wrap(pageController.renderDashboard));
 router.get("/orders", requireAuth, wrap(pageController.renderOrders));
+
+// Admin-only pages (keep them, but guarded)
 router.get("/production", requireAuth, requireRole("ADMIN"), wrap(pageController.renderProduction));
-router.get("/inventory", requireAuth, wrap(pageController.renderInventory));
+router.get("/inventory", requireAuth, requireRole("ADMIN"), wrap(pageController.renderInventory));
 router.get("/analytics", requireAuth, requireRole("ADMIN"), wrap(pageController.renderAnalytics));
 router.get("/settings", requireAuth, requireRole("ADMIN"), wrap(pageController.renderSettings));
 router.get("/activity", requireAuth, requireRole("ADMIN"), wrap(pageController.renderActivity));
 
-// PDF (Order)
+// PDF route
 router.get("/orders/:id/pdf", requireAuth, wrap(pdfController.orderPdf));
 
 module.exports = router;
