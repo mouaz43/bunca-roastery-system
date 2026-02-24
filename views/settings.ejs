@@ -1,447 +1,613 @@
 <%
-  var q = (typeof query !== "undefined" && query) ? query : {};
-  var tab = q.tab || "users";
-
-  var users = (typeof users !== "undefined" && users) ? users : [];
-  var b2b = (typeof b2b !== "undefined" && b2b) ? b2b : [];
   var coffees = (typeof coffees !== "undefined" && coffees) ? coffees : [];
-  var shops = (typeof shops !== "undefined" && shops) ? shops : [];
+  var shops   = (typeof shops !== "undefined" && shops) ? shops : [];
+  var users   = (typeof users !== "undefined" && users) ? users : [];
+  var b2b     = (typeof b2b !== "undefined" && b2b) ? b2b : [];
 
-  var userOk = q.user_ok || null, userError = q.user_error || null;
-  var masterOk = q.master_ok || null, masterError = q.master_error || null;
-  var b2bOk = q.b2b_ok || null, b2bError = q.b2b_error || null;
+  var q = (typeof query !== "undefined" && query) ? query : (typeof query !== "undefined" ? query : {});
+  var tab = (q && q.tab) ? String(q.tab) : "users";
 
-  // selection
-  var selUser = q.user || "";
-  var selCoffee = q.coffee || "";
-  var selShop = q.shop || "";
-  var selB2B = q.b2b || "";
+  function qp(key){ return (q && q[key]) ? String(q[key]) : ""; }
 
-  function link(t, extra){
-    var base = "/settings?tab=" + encodeURIComponent(t);
-    if (!extra) return base;
-    return base + "&" + extra;
+  var userError = qp("user_error");
+  var userOk    = qp("user_ok");
+  var masterErr = qp("master_error");
+  var masterOk  = qp("master_ok");
+  var b2bErr    = qp("b2b_error");
+  var b2bOk     = qp("b2b_ok");
+
+  function esc(s){ return encodeURIComponent(String(s||"")); }
+
+  function activeTab(t){ return tab===t ? "tab active" : "tab"; }
+
+  function firstLetter(name){
+    var s = String(name||"").trim();
+    return s ? s[0].toUpperCase() : "?";
   }
-  function find(list, id){
-    for (var i=0;i<list.length;i++) if (String(list[i].id)===String(id)) return list[i];
-    return null;
+
+  function findShopName(shopId){
+    var id = String(shopId||"");
+    for (var i=0;i<shops.length;i++){
+      if (String(shops[i].id)===id) return shops[i].name;
+    }
+    return "-";
   }
-  var uSel = selUser ? find(users, selUser) : null;
-  var cSel = selCoffee ? find(coffees, selCoffee) : null;
-  var sSel = selShop ? find(shops, selShop) : null;
-  var bSel = selB2B ? find(b2b, selB2B) : null;
 %>
 
-<div class="card-grid">
-  <div class="card">
-    <h2>Einstellungen</h2>
-    <p class="small-note">Stammdaten & Benutzerverwaltung. Links auswählen, rechts bearbeiten.</p>
-  </div>
-  <div class="card">
-    <h2>Status</h2>
-    <p class="small-note">Coffees: <strong><%= coffees.length %></strong> · Shops: <strong><%= shops.length %></strong> · Users: <strong><%= users.length %></strong></p>
-  </div>
-</div>
+<style>
+  .settings-shell{ display:grid; gap:14px; grid-template-columns:1fr; }
+  .settings-header{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:22px;
+    padding:16px 18px;
+    background: rgba(255,255,255,.65);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .settings-header h2{ margin:0; }
+  .settings-header .sub{ margin-top:6px; font-size:13px; opacity:.75; }
+  .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 12px; border-radius:999px;
+    border:1px solid rgba(0,0,0,.08);
+    background: rgba(255,255,255,.55);
+    font-weight:900; font-size:12px;
+    white-space:nowrap;
+  }
+  .pill .dot{ width:8px; height:8px; border-radius:999px; background: rgba(0,0,0,.25); }
+  .pill.ok{ border-color: rgba(38,201,122,.35); background: rgba(38,201,122,.08); }
+  .pill.ok .dot{ background: rgba(38,201,122,.9); }
+  .pill.warn{ border-color: rgba(255,168,0,.35); background: rgba(255,168,0,.10); }
+  .pill.warn .dot{ background: rgba(255,168,0,.95); }
 
-<% if (userError) { %><div class="card" style="border-color: rgba(255,77,77,.35);"><h2>User Fehler</h2><p><%= userError %></p></div><% } %>
-<% if (userOk) { %><div class="card" style="border-color: rgba(38,201,122,.35);"><h2>User OK</h2><p><%= userOk %></p></div><% } %>
+  .notice{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.70);
+  }
+  .notice.ok{ border-color: rgba(38,201,122,.30); background: rgba(38,201,122,.06); }
+  .notice.err{ border-color: rgba(255,77,77,.30); background: rgba(255,77,77,.06); }
+  .notice h3{ margin:0; font-size:14px; font-weight:950; }
+  .notice p{ margin:6px 0 0; font-size:13px; opacity:.8; }
 
-<% if (masterError) { %><div class="card" style="border-color: rgba(255,77,77,.35);"><h2>Stammdaten Fehler</h2><p><%= masterError %></p></div><% } %>
-<% if (masterOk) { %><div class="card" style="border-color: rgba(38,201,122,.35);"><h2>Stammdaten OK</h2><p><%= masterOk %></p></div><% } %>
+  .tabs{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:22px;
+    padding:10px;
+    background: rgba(255,255,255,.55);
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .tab{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:12px 14px;
+    border-radius:16px;
+    border:1px solid rgba(0,0,0,.06);
+    background: rgba(255,255,255,.55);
+    font-weight:950;
+    text-decoration:none;
+    min-width:140px;
+  }
+  .tab:hover{ background: rgba(255,255,255,.72); text-decoration:none; }
+  .tab.active{
+    background: linear-gradient(180deg, rgba(200,163,106,.22), rgba(255,255,255,.55));
+    border-color: rgba(200,163,106,.35);
+  }
 
-<% if (b2bError) { %><div class="card" style="border-color: rgba(255,77,77,.35);"><h2>B2B Fehler</h2><p><%= b2bError %></p></div><% } %>
-<% if (b2bOk) { %><div class="card" style="border-color: rgba(38,201,122,.35);"><h2>B2B OK</h2><p><%= b2bOk %></p></div><% } %>
+  .two-col{ display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:1100px){ .two-col{ grid-template-columns: 1fr 1fr; } }
 
-<div class="section">
-  <div class="section-body">
-    <div class="filterbar">
-      <div class="filter-left" style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn btn-sm <%= tab==='users'?'btn-primary':'btn-ghost' %>" href="<%= link('users') %>">Benutzer</a>
-        <a class="btn btn-sm <%= tab==='coffee'?'btn-primary':'btn-ghost' %>" href="<%= link('coffee') %>">Kaffeesorten</a>
-        <a class="btn btn-sm <%= tab==='shops'?'btn-primary':'btn-ghost' %>" href="<%= link('shops') %>">Filialen</a>
-        <a class="btn btn-sm <%= tab==='b2b'?'btn-primary':'btn-ghost' %>" href="<%= link('b2b') %>">B2B Kunden</a>
-      </div>
+  .panel{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:18px;
+    padding:14px;
+    background: rgba(255,255,255,.65);
+  }
+  .panel h3{ margin:0; font-weight:950; font-size:16px; }
+  .panel .sub{ margin-top:8px; font-size:13px; opacity:.75; }
+
+  .toolbar{ display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-top:12px; }
+  .search{ flex:1; min-width:240px; }
+  .bigbtn{ height:46px; border-radius:18px; font-weight:950; }
+
+  .list{
+    margin-top:12px;
+    display:grid;
+    gap:10px;
+  }
+  .rowItem{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;
+    padding:12px;
+    background: rgba(255,255,255,.60);
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .rowItem .t{ font-weight:950; }
+  .rowItem .m{ margin-top:4px; font-size:12px; opacity:.75; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  .miniActions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+  .mini{ height:40px; border-radius:16px; }
+
+  .editorGrid{ display:grid; gap:10px; margin-top:12px; }
+  .field .label{ font-size:12px; opacity:.75; font-weight:900; margin-bottom:6px; }
+  .inputBig{ height:46px; border-radius:16px; }
+
+  .avatar{
+    width:38px; height:38px; border-radius:14px;
+    border:1px solid rgba(0,0,0,.06);
+    background: rgba(255,255,255,.60);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:950;
+  }
+
+  .hint{
+    margin-top:14px;
+    border:1px dashed rgba(0,0,0,.18);
+    border-radius:18px;
+    padding:12px;
+    background: rgba(255,255,255,.45);
+  }
+  .hint b{ font-weight:950; }
+</style>
+
+<div class="settings-shell">
+
+  <div class="settings-header">
+    <div>
+      <h2>Einstellungen</h2>
+      <div class="sub">Admin-Hub: Benutzer, Kaffeesorten, Filialen (B2B als nächster Schritt).</div>
     </div>
+    <span class="pill ok"><span class="dot"></span>Admin</span>
+  </div>
 
-    <!-- 2 column editor layout -->
-    <div class="card-grid mt-3" style="grid-template-columns: 380px 1fr; align-items:start;">
+  <% if (userError || masterErr || b2bErr) { %>
+    <div class="notice err">
+      <h3>Fehler</h3>
+      <p><%= userError || masterErr || b2bErr %></p>
+    </div>
+  <% } %>
 
-      <!-- LEFT LIST -->
-      <div class="card">
-        <% if (tab==='users') { %>
-          <h2>Benutzer</h2>
-          <p class="small-note">Suchen, auswählen, bearbeiten.</p>
-          <div class="filterbar mt-3">
-            <div class="filter-left">
-              <input class="input" placeholder="Suche (Name/E-Mail)" oninput="filterList('listUsers', this.value)" />
-            </div>
-            <div class="filter-right">
-              <a class="btn btn-sm btn-primary" href="#newUser">Neu</a>
-            </div>
-          </div>
-          <div id="listUsers" class="mt-3" style="display:grid; gap:8px;">
-            <% for (var i=0;i<users.length;i++) { %>
-              <a class="nav-item <%= (uSel && uSel.id===users[i].id)?'active':'' %>"
-                 href="<%= link('users','user='+encodeURIComponent(users[i].id)) %>"
-                 data-text="<%= (users[i].name+' '+users[i].email).toLowerCase() %>"
-                 style="text-decoration:none;">
-                <div style="display:flex; flex-direction:column;">
-                  <div style="font-weight:950;"><%= users[i].name %></div>
-                  <div class="small-note mono"><%= users[i].email %> · <%= users[i].role %></div>
-                </div>
-              </a>
-            <% } %>
-          </div>
+  <% if (userOk || masterOk || b2bOk) { %>
+    <div class="notice ok">
+      <h3>OK</h3>
+      <p><%= userOk || masterOk || b2bOk %></p>
+    </div>
+  <% } %>
 
-        <% } else if (tab==='coffee') { %>
-          <h2>Kaffeesorten</h2>
-          <p class="small-note">Liste links, Editor rechts.</p>
-          <div class="filterbar mt-3">
-            <div class="filter-left">
-              <input class="input" placeholder="Suche (ID/Name)" oninput="filterList('listCoffee', this.value)" />
-            </div>
-            <div class="filter-right">
-              <a class="btn btn-sm btn-primary" href="#newCoffee">Neu</a>
-            </div>
-          </div>
-          <div id="listCoffee" class="mt-3" style="display:grid; gap:8px;">
-            <% for (var c=0;c<coffees.length;c++) { %>
-              <a class="nav-item <%= (cSel && cSel.id===coffees[c].id)?'active':'' %>"
-                 href="<%= link('coffee','coffee='+encodeURIComponent(coffees[c].id)) %>"
-                 data-text="<%= (coffees[c].id+' '+coffees[c].name).toLowerCase() %>"
-                 style="text-decoration:none;">
-                <div style="display:flex; flex-direction:column;">
-                  <div style="font-weight:950;"><%= coffees[c].name %></div>
-                  <div class="small-note mono"><%= coffees[c].id %> · Pack <%= coffees[c].packDefaultKg || 1 %>kg</div>
-                </div>
-              </a>
-            <% } %>
-          </div>
+  <div class="tabs">
+    <a class="<%= activeTab('users') %>" href="/settings?tab=users">Benutzer</a>
+    <a class="<%= activeTab('coffees') %>" href="/settings?tab=coffees">Kaffeesorten</a>
+    <a class="<%= activeTab('shops') %>" href="/settings?tab=shops">Filialen</a>
+    <a class="<%= activeTab('b2b') %>" href="/settings?tab=b2b">B2B Kunden</a>
+  </div>
 
-        <% } else if (tab==='shops') { %>
-          <h2>Filialen</h2>
-          <p class="small-note">Filialen verwalten.</p>
-          <div class="filterbar mt-3">
-            <div class="filter-left">
-              <input class="input" placeholder="Suche (ID/Name)" oninput="filterList('listShops', this.value)" />
-            </div>
-            <div class="filter-right">
-              <a class="btn btn-sm btn-primary" href="#newShop">Neu</a>
-            </div>
-          </div>
-          <div id="listShops" class="mt-3" style="display:grid; gap:8px;">
-            <% for (var s=0;s<shops.length;s++) { %>
-              <a class="nav-item <%= (sSel && sSel.id===shops[s].id)?'active':'' %>"
-                 href="<%= link('shops','shop='+encodeURIComponent(shops[s].id)) %>"
-                 data-text="<%= (shops[s].id+' '+shops[s].name).toLowerCase() %>"
-                 style="text-decoration:none;">
-                <div style="display:flex; flex-direction:column;">
-                  <div style="font-weight:950;"><%= shops[s].name %></div>
-                  <div class="small-note mono"><%= shops[s].id %></div>
-                </div>
-              </a>
-            <% } %>
-          </div>
+  <!-- USERS -->
+  <% if (tab === "users") { %>
+    <div class="two-col">
+      <div class="panel">
+        <h3>Benutzerliste</h3>
+        <div class="sub">Bearbeitbar als nächster Schritt. Aktuell: Erstellen & Löschen über Buttons (wenn aktiviert).</div>
 
-        <% } else { %>
-          <h2>B2B Kunden</h2>
-          <p class="small-note">B2B Stammdaten.</p>
-          <div class="filterbar mt-3">
-            <div class="filter-left">
-              <input class="input" placeholder="Suche (Name/E-Mail)" oninput="filterList('listB2B', this.value)" />
-            </div>
-            <div class="filter-right">
-              <a class="btn btn-sm btn-primary" href="#newB2B">Neu</a>
-            </div>
-          </div>
-          <div id="listB2B" class="mt-3" style="display:grid; gap:8px;">
-            <% for (var b=0;b<b2b.length;b++) { %>
-              <a class="nav-item <%= (bSel && bSel.id===b2b[b].id)?'active':'' %>"
-                 href="<%= link('b2b','b2b='+encodeURIComponent(b2b[b].id)) %>"
-                 data-text="<%= (b2b[b].name+' '+(b2b[b].email||'')).toLowerCase() %>"
-                 style="text-decoration:none;">
-                <div style="display:flex; flex-direction:column;">
-                  <div style="font-weight:950;"><%= b2b[b].name %></div>
-                  <div class="small-note mono"><%= b2b[b].email || '-' %></div>
-                </div>
-              </a>
-            <% } %>
-          </div>
-        <% } %>
-      </div>
+        <div class="toolbar">
+          <input class="input inputBig search" id="uSearch" placeholder="Suche (Name / E-Mail / Rolle / Filiale)" />
+          <span class="pill"><span class="dot"></span><%= users.length %> Nutzer</span>
+        </div>
 
-      <!-- RIGHT EDITOR -->
-      <div class="card">
-        <% if (tab==='users') { %>
-          <h2>Editor</h2>
-          <p class="small-note">Benutzer anlegen, bearbeiten, Passwort setzen, löschen.</p>
+        <div class="list" id="uList">
+          <% if (!users.length) { %>
+            <div class="small-note">Noch keine Benutzer vorhanden.</div>
+          <% } %>
 
-          <div id="newUser" class="mt-3">
-            <h3 style="margin:0 0 10px 0;">Neuer Benutzer</h3>
-            <form method="POST" action="/actions/users/create">
-              <div class="filterbar">
-                <div class="filter-left">
-                  <input class="input" name="name" placeholder="Name" style="min-width:180px;" />
-                  <input class="input" name="email" placeholder="E-Mail" style="min-width:240px;" />
-                  <select class="select" name="role">
-                    <option value="SHOP">SHOP</option>
-                    <option value="ADMIN">ADMIN</option>
-                  </select>
-                  <select class="select" name="shopId" style="min-width:220px;">
-                    <option value="">Filiale (nur SHOP)</option>
-                    <% for (var i=0;i<shops.length;i++) { %>
-                      <option value="<%= shops[i].id %>"><%= shops[i].name %> (<%= shops[i].id %>)</option>
+          <% for (var i=0;i<users.length;i++) { %>
+            <div class="rowItem" data-search="<%= (users[i].name+' '+users[i].email+' '+users[i].role+' '+(users[i].shopId||'')).toLowerCase() %>">
+              <div style="display:flex; gap:10px; align-items:flex-start;">
+                <div class="avatar"><%= firstLetter(users[i].name || users[i].email) %></div>
+                <div>
+                  <div class="t"><%= users[i].name || "-" %></div>
+                  <div class="m mono"><%= users[i].email || "-" %></div>
+                  <div class="m">
+                    Rolle: <b><%= users[i].role || "-" %></b>
+                    <% if (users[i].role === "SHOP") { %>
+                      · Filiale: <b><%= findShopName(users[i].shopId) %></b> (<span class="mono"><%= users[i].shopId || "-" %></span>)
                     <% } %>
-                  </select>
-                  <input class="input" name="password" placeholder="Passwort" style="min-width:180px;" />
-                </div>
-                <div class="filter-right">
-                  <button class="btn btn-primary" type="submit">Erstellen</button>
-                </div>
-              </div>
-            </form>
-          </div>
-
-          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
-            <h3 style="margin:0 0 10px 0;">Benutzer bearbeiten</h3>
-            <% if (!uSel) { %>
-              <div class="small-note">Wähle links einen Benutzer aus.</div>
-            <% } else { %>
-              <form method="POST" action="/actions/users/update">
-                <input type="hidden" name="id" value="<%= uSel.id %>" />
-                <div class="card" style="margin:0;">
-                  <div class="small-note">E-Mail (stabil)</div>
-                  <div class="mono" style="font-weight:950;"><%= uSel.email %></div>
-
-                  <div class="mt-3 small-note">Name</div>
-                  <input class="input" name="name" value="<%= uSel.name %>" />
-
-                  <div class="mt-3 small-note">Rolle</div>
-                  <select class="select" name="role">
-                    <option value="ADMIN" <%= uSel.role==='ADMIN'?'selected':'' %>>ADMIN</option>
-                    <option value="SHOP" <%= uSel.role==='SHOP'?'selected':'' %>>SHOP</option>
-                  </select>
-
-                  <div class="mt-3 small-note">Filiale (nur SHOP)</div>
-                  <select class="select" name="shopId">
-                    <option value="">-</option>
-                    <% for (var j=0;j<shops.length;j++) { %>
-                      <option value="<%= shops[j].id %>" <%= (uSel.shopId===shops[j].id)?'selected':'' %>>
-                        <%= shops[j].name %> (<%= shops[j].id %>)
-                      </option>
-                    <% } %>
-                  </select>
-
-                  <div class="row mt-3" style="justify-content:space-between;">
-                    <button class="btn btn-primary" type="submit">Speichern</button>
-                    <a class="btn btn-ghost" href="<%= link('users') %>">Auswahl löschen</a>
                   </div>
                 </div>
-              </form>
-
-              <div class="card mt-3">
-                <h2>Passwort</h2>
-                <div class="row" style="justify-content:space-between; gap:12px;">
-                  <form method="POST" action="/actions/users/reset-password" onsubmit="return confirm('Passwort zurücksetzen?');" style="display:flex; gap:10px; align-items:center;">
-                    <input type="hidden" name="id" value="<%= uSel.id %>" />
-                    <button class="btn btn-ghost" type="submit">Reset (Temp)</button>
-                  </form>
-
-                  <form method="POST" action="/actions/users/set-password" onsubmit="return confirm('Neues Passwort setzen?');" style="display:flex; gap:10px; align-items:center;">
-                    <input type="hidden" name="id" value="<%= uSel.id %>" />
-                    <input class="input" name="password" placeholder="Neues Passwort (min 8)" style="min-width:220px;" />
-                    <button class="btn btn-ghost" type="submit">Setzen</button>
-                  </form>
-                </div>
               </div>
 
-              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
-                <h2>Danger Zone</h2>
-                <form method="POST" action="/actions/users/delete" onsubmit="return confirm('Benutzer wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= uSel.id %>" />
-                  <button class="btn btn-danger" type="submit">Benutzer löschen</button>
-                </form>
-                <div class="small-note mt-2">Letzter Admin kann nicht gelöscht werden.</div>
+              <div class="miniActions">
+                <!-- optional: delete endpoint later -->
+                <span class="pill"><span class="dot"></span>ID: <span class="mono"><%= users[i].id || "-" %></span></span>
               </div>
-            <% } %>
-          </div>
+            </div>
+          <% } %>
+        </div>
 
-        <% } else if (tab==='coffee') { %>
-          <h2>Editor</h2>
-          <p class="small-note">Kaffeesorte anlegen, bearbeiten, löschen.</p>
-
-          <div id="newCoffee" class="mt-3">
-            <h3 style="margin:0 0 10px 0;">Neue Kaffeesorte</h3>
-            <form method="POST" action="/actions/masters/coffee/create">
-              <div class="filterbar">
-                <div class="filter-left">
-                  <input class="input" name="id" placeholder="ID (z.B. ESPRESSO)" style="min-width:200px;" />
-                  <input class="input" name="name" placeholder="Name" style="min-width:260px;" />
-                  <input class="input" name="packDefaultKg" placeholder="Pack kg" style="min-width:140px;" />
-                </div>
-                <div class="filter-right">
-                  <button class="btn btn-primary" type="submit">Anlegen</button>
-                </div>
-              </div>
-            </form>
-          </div>
-
-          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
-            <h3 style="margin:0 0 10px 0;">Sorte bearbeiten</h3>
-            <% if (!cSel) { %>
-              <div class="small-note">Wähle links eine Sorte aus.</div>
-            <% } else { %>
-              <form method="POST" action="/actions/masters/coffee/update">
-                <input type="hidden" name="id" value="<%= cSel.id %>" />
-                <div class="card" style="margin:0;">
-                  <div class="small-note">ID (stabil)</div>
-                  <div class="mono" style="font-weight:950;"><%= cSel.id %></div>
-
-                  <div class="mt-3 small-note">Name</div>
-                  <input class="input" name="name" value="<%= cSel.name %>" />
-
-                  <div class="mt-3 small-note">Pack Standard (kg)</div>
-                  <input class="input" name="packDefaultKg" value="<%= cSel.packDefaultKg || 1 %>" />
-
-                  <div class="row mt-3" style="justify-content:space-between;">
-                    <button class="btn btn-primary" type="submit">Speichern</button>
-                    <a class="btn btn-ghost" href="<%= link('coffee') %>">Auswahl löschen</a>
-                  </div>
-                </div>
-              </form>
-
-              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
-                <h2>Danger Zone</h2>
-                <form method="POST" action="/actions/masters/coffee/delete" onsubmit="return confirm('Sorte wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= cSel.id %>" />
-                  <button class="btn btn-danger" type="submit">Sorte löschen</button>
-                </form>
-              </div>
-            <% } %>
-          </div>
-
-        <% } else if (tab==='shops') { %>
-          <h2>Editor</h2>
-          <p class="small-note">Filiale anlegen, bearbeiten, löschen.</p>
-
-          <div id="newShop" class="mt-3">
-            <h3 style="margin:0 0 10px 0;">Neue Filiale</h3>
-            <form method="POST" action="/actions/masters/shop/create">
-              <div class="filterbar">
-                <div class="filter-left">
-                  <input class="input" name="id" placeholder="ID (z.B. CITY)" style="min-width:200px;" />
-                  <input class="input" name="name" placeholder="Name" style="min-width:320px;" />
-                </div>
-                <div class="filter-right">
-                  <button class="btn btn-primary" type="submit">Anlegen</button>
-                </div>
-              </div>
-            </form>
-          </div>
-
-          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
-            <h3 style="margin:0 0 10px 0;">Filiale bearbeiten</h3>
-            <% if (!sSel) { %>
-              <div class="small-note">Wähle links eine Filiale aus.</div>
-            <% } else { %>
-              <form method="POST" action="/actions/masters/shop/update">
-                <input type="hidden" name="id" value="<%= sSel.id %>" />
-                <div class="card" style="margin:0;">
-                  <div class="small-note">ID (stabil)</div>
-                  <div class="mono" style="font-weight:950;"><%= sSel.id %></div>
-
-                  <div class="mt-3 small-note">Name</div>
-                  <input class="input" name="name" value="<%= sSel.name %>" />
-
-                  <div class="row mt-3" style="justify-content:space-between;">
-                    <button class="btn btn-primary" type="submit">Speichern</button>
-                    <a class="btn btn-ghost" href="<%= link('shops') %>">Auswahl löschen</a>
-                  </div>
-                </div>
-              </form>
-
-              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
-                <h2>Danger Zone</h2>
-                <div class="small-note">Löschen entfernt Filiale + (wenn du es so eingestellt hast) auch Benutzer.</div>
-                <form method="POST" action="/actions/masters/shop/delete" onsubmit="return confirm('Filiale wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= sSel.id %>" />
-                  <button class="btn btn-danger" type="submit">Filiale löschen</button>
-                </form>
-              </div>
-            <% } %>
-          </div>
-
-        <% } else { %>
-          <h2>Editor</h2>
-          <p class="small-note">B2B Kunde anlegen, bearbeiten, löschen.</p>
-
-          <div id="newB2B" class="mt-3">
-            <h3 style="margin:0 0 10px 0;">Neuer B2B Kunde</h3>
-            <form method="POST" action="/actions/b2b/create">
-              <div style="display:grid; gap:10px;">
-                <input class="input" name="name" placeholder="Name" />
-                <div class="row" style="gap:10px;">
-                  <input class="input" name="email" placeholder="E-Mail" style="flex:1;" />
-                  <input class="input" name="phone" placeholder="Telefon" style="flex:1;" />
-                </div>
-                <input class="input" name="address" placeholder="Adresse" />
-                <input class="input" name="note" placeholder="Notiz" />
-                <button class="btn btn-primary" type="submit">Erstellen</button>
-              </div>
-            </form>
-          </div>
-
-          <div class="mt-4" style="border-top:1px solid rgba(0,0,0,.06); padding-top:16px;">
-            <h3 style="margin:0 0 10px 0;">B2B bearbeiten</h3>
-            <% if (!bSel) { %>
-              <div class="small-note">Wähle links einen B2B Kunden aus.</div>
-            <% } else { %>
-              <form method="POST" action="/actions/b2b/update">
-                <input type="hidden" name="id" value="<%= bSel.id %>" />
-                <div style="display:grid; gap:10px;">
-                  <input class="input" name="name" value="<%= bSel.name %>" />
-                  <div class="row" style="gap:10px;">
-                    <input class="input" name="email" value="<%= bSel.email %>" style="flex:1;" />
-                    <input class="input" name="phone" value="<%= bSel.phone %>" style="flex:1;" />
-                  </div>
-                  <input class="input" name="address" value="<%= bSel.address %>" />
-                  <input class="input" name="note" value="<%= bSel.note %>" />
-                  <div class="row" style="justify-content:space-between;">
-                    <button class="btn btn-primary" type="submit">Speichern</button>
-                    <a class="btn btn-ghost" href="<%= link('b2b') %>">Auswahl löschen</a>
-                  </div>
-                </div>
-              </form>
-
-              <div class="card mt-3" style="border-color: rgba(255,77,77,.22);">
-                <h2>Danger Zone</h2>
-                <form method="POST" action="/actions/b2b/delete" onsubmit="return confirm('B2B Kunde wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= bSel.id %>" />
-                  <button class="btn btn-danger" type="submit">B2B Kunde löschen</button>
-                </form>
-              </div>
-            <% } %>
-          </div>
-        <% } %>
+        <div class="hint">
+          <b>Seitenhinweis:</b> Admin kann hier Accounts anlegen. Filialen sehen nur Dashboard + Bestellungen.
+        </div>
       </div>
 
-    </div>
+      <div class="panel">
+        <h3>Benutzer erstellen</h3>
+        <div class="sub">Schnell und sauber. Passwörter später via Reset-Funktion verwalten.</div>
 
-    <div class="small-note mt-3">
-      Seitenhinweis: Alles hier wirkt direkt auf Bestellungen, Produktion und Lager.
+        <form method="POST" action="/actions/users/create" class="editorGrid">
+          <div class="field">
+            <div class="label">Name</div>
+            <input class="input inputBig" name="name" placeholder="z.B. Bunca City shop 1" required />
+          </div>
+
+          <div class="field">
+            <div class="label">E-Mail</div>
+            <input class="input inputBig" name="email" placeholder="z.B. city@bunca.local" required />
+          </div>
+
+          <div class="field">
+            <div class="label">Rolle</div>
+            <select class="select inputBig" name="role" id="uRole" required>
+              <option value="SHOP">Filiale</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+
+          <div class="field" id="uShopWrap">
+            <div class="label">Filiale (nur bei Rolle Filiale)</div>
+            <select class="select inputBig" name="shopId" id="uShop">
+              <option value="">Bitte wählen</option>
+              <% for (var s=0;s<shops.length;s++) { %>
+                <option value="<%= shops[s].id %>"><%= shops[s].name %> (<%= shops[s].id %>)</option>
+              <% } %>
+            </select>
+          </div>
+
+          <div class="field">
+            <div class="label">Passwort</div>
+            <input class="input inputBig" name="password" placeholder="mind. 8 Zeichen" required />
+          </div>
+
+          <button class="btn btn-primary bigbtn" type="submit">Benutzer erstellen</button>
+
+          <div class="hint">
+            <b>Hinweis:</b> Für Filialen bitte eine Filiale auswählen. Admin sieht alle Bereiche.
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
+  <% } %>
+
+  <!-- COFFEES -->
+  <% if (tab === "coffees") { %>
+    <div class="two-col">
+      <div class="panel">
+        <h3>Kaffeesorten</h3>
+        <div class="sub">ID bleibt stabil. Name und Pack können aktualisiert werden.</div>
+
+        <div class="toolbar">
+          <input class="input inputBig search" id="cSearch" placeholder="Suche (ID oder Name)" />
+          <span class="pill"><span class="dot"></span><%= coffees.length %> Sorten</span>
+        </div>
+
+        <div class="list" id="cList">
+          <% if (!coffees.length) { %>
+            <div class="small-note">Noch keine Sorten vorhanden.</div>
+          <% } %>
+
+          <% for (var c=0;c<coffees.length;c++) { %>
+            <div class="rowItem"
+                 data-search="<%= (coffees[c].id+' '+coffees[c].name).toLowerCase() %>"
+                 onclick="pickCoffee('<%= coffees[c].id %>','<%= (coffees[c].name||'').replace(/'/g,'&#39;') %>','<%= coffees[c].packDefaultKg || 1 %>')"
+                 style="cursor:pointer;">
+              <div>
+                <div class="t"><%= coffees[c].name %></div>
+                <div class="m mono"><%= coffees[c].id %> · Pack <%= coffees[c].packDefaultKg || 1 %> kg</div>
+              </div>
+              <span class="pill"><span class="dot"></span>Bearbeiten</span>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="hint">
+          <b>Seitenhinweis:</b> Änderungen wirken direkt auf Bestellungen/Produktion. Löschen ist nur möglich, wenn keine Referenzen existieren.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Editor</h3>
+        <div class="sub">Links auswählen oder rechts neu anlegen.</div>
+
+        <div class="editorGrid">
+          <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:space-between;">
+            <span class="pill"><span class="dot"></span><span id="cMode">Neu</span></span>
+            <button class="btn btn-ghost mini" type="button" onclick="resetCoffee()">Reset</button>
+          </div>
+
+          <form method="POST" action="/actions/masters/coffee/create" id="coffeeCreate" class="editorGrid">
+            <div class="field">
+              <div class="label">ID (einmalig)</div>
+              <input class="input inputBig" name="id" id="cId" placeholder="z.B. ESPRESSO" required />
+            </div>
+            <div class="field">
+              <div class="label">Name</div>
+              <input class="input inputBig" name="name" id="cName" placeholder="z.B. Espresso Blend" required />
+            </div>
+            <div class="field">
+              <div class="label">Pack (kg)</div>
+              <input class="input inputBig" name="packDefaultKg" id="cPack" type="number" step="0.1" min="0.1" value="1" required />
+            </div>
+            <button class="btn btn-primary bigbtn" type="submit">Sorte anlegen</button>
+          </form>
+
+          <form method="POST" action="/actions/masters/coffee/update" id="coffeeUpdate" class="editorGrid" style="display:none;">
+            <input type="hidden" name="id" id="cId2" />
+            <div class="field">
+              <div class="label">ID (fix)</div>
+              <input class="input inputBig" id="cIdView" disabled />
+            </div>
+            <div class="field">
+              <div class="label">Name</div>
+              <input class="input inputBig" name="name" id="cName2" required />
+            </div>
+            <div class="field">
+              <div class="label">Pack (kg)</div>
+              <input class="input inputBig" name="packDefaultKg" id="cPack2" type="number" step="0.1" min="0.1" required />
+            </div>
+
+            <div class="row" style="gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-primary bigbtn" type="submit" style="flex:1; min-width:220px;">Änderungen speichern</button>
+
+              <form method="POST" action="/actions/masters/coffee/delete"
+                    onsubmit="return confirm('Sorte wirklich löschen? Nur möglich, wenn keine Bestellungen/Chargen existieren.');"
+                    style="flex:1; min-width:220px;">
+                <input type="hidden" name="id" id="cDelId" />
+                <button class="btn btn-danger bigbtn" type="submit" style="width:100%;">Löschen</button>
+              </form>
+            </div>
+          </form>
+
+          <div class="hint">
+            <b>Tipp:</b> Nutze kurze, stabile IDs (z.B. ESPRESSO, FILTER). Der Name kann jederzeit geändert werden.
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <!-- SHOPS -->
+  <% if (tab === "shops") { %>
+    <div class="two-col">
+      <div class="panel">
+        <h3>Filialen</h3>
+        <div class="sub">Filial-ID wird für Rollen und Bestellungen verwendet.</div>
+
+        <div class="toolbar">
+          <input class="input inputBig search" id="sSearch" placeholder="Suche (ID oder Name)" />
+          <span class="pill"><span class="dot"></span><%= shops.length %> Filialen</span>
+        </div>
+
+        <div class="list" id="sList">
+          <% if (!shops.length) { %>
+            <div class="small-note">Noch keine Filialen vorhanden.</div>
+          <% } %>
+
+          <% for (var s=0;s<shops.length;s++) { %>
+            <div class="rowItem"
+                 data-search="<%= (shops[s].id+' '+shops[s].name).toLowerCase() %>"
+                 onclick="pickShop('<%= shops[s].id %>','<%= (shops[s].name||'').replace(/'/g,'&#39;') %>')"
+                 style="cursor:pointer;">
+              <div>
+                <div class="t"><%= shops[s].name %></div>
+                <div class="m mono"><%= shops[s].id %></div>
+              </div>
+              <span class="pill"><span class="dot"></span>Bearbeiten</span>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="hint">
+          <b>Seitenhinweis:</b> Löschen nur möglich, wenn keine Bestellungen/Benutzer an die Filiale gebunden sind.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Editor</h3>
+        <div class="sub">Links auswählen oder neu anlegen.</div>
+
+        <div class="editorGrid">
+          <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:space-between;">
+            <span class="pill"><span class="dot"></span><span id="sMode">Neu</span></span>
+            <button class="btn btn-ghost mini" type="button" onclick="resetShop()">Reset</button>
+          </div>
+
+          <form method="POST" action="/actions/masters/shop/create" id="shopCreate" class="editorGrid">
+            <div class="field">
+              <div class="label">ID (einmalig)</div>
+              <input class="input inputBig" name="id" id="sId" placeholder="z.B. CITY" required />
+            </div>
+            <div class="field">
+              <div class="label">Name</div>
+              <input class="input inputBig" name="name" id="sName" placeholder="z.B. Bunca City" required />
+            </div>
+            <button class="btn btn-primary bigbtn" type="submit">Filiale anlegen</button>
+          </form>
+
+          <form method="POST" action="/actions/masters/shop/update" id="shopUpdate" class="editorGrid" style="display:none;">
+            <input type="hidden" name="id" id="sId2" />
+            <div class="field">
+              <div class="label">ID (fix)</div>
+              <input class="input inputBig" id="sIdView" disabled />
+            </div>
+            <div class="field">
+              <div class="label">Name</div>
+              <input class="input inputBig" name="name" id="sName2" required />
+            </div>
+
+            <div class="row" style="gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-primary bigbtn" type="submit" style="flex:1; min-width:220px;">Änderungen speichern</button>
+
+              <form method="POST" action="/actions/masters/shop/delete"
+                    onsubmit="return confirm('Filiale wirklich löschen? Nur möglich ohne Bestellungen/Benutzer.');"
+                    style="flex:1; min-width:220px;">
+                <input type="hidden" name="id" id="sDelId" />
+                <button class="btn btn-danger bigbtn" type="submit" style="width:100%;">Löschen</button>
+              </form>
+            </div>
+          </form>
+
+          <div class="hint">
+            <b>Tipp:</b> IDs groß schreiben (CITY, BERGER). Der Name kann später geändert werden.
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <!-- B2B -->
+  <% if (tab === "b2b") { %>
+    <div class="two-col">
+      <div class="panel">
+        <h3>B2B Kunden</h3>
+        <div class="sub">UI ist bereit. Backend (Create/Update/Delete) machen wir als nächsten Schritt sauber.</div>
+
+        <div class="toolbar">
+          <input class="input inputBig search" id="bSearch" placeholder="Suche (Name)" />
+          <span class="pill"><span class="dot"></span><%= b2b.length %> Kunden</span>
+        </div>
+
+        <div class="list" id="bList">
+          <% if (!b2b.length) { %>
+            <div class="small-note">Noch keine B2B Kunden vorhanden.</div>
+          <% } %>
+
+          <% for (var b=0;b<b2b.length;b++) { %>
+            <div class="rowItem" data-search="<%= String(b2b[b].name||'').toLowerCase() %>">
+              <div>
+                <div class="t"><%= b2b[b].name || "-" %></div>
+                <div class="m">B2B Kunde</div>
+              </div>
+              <span class="pill warn"><span class="dot"></span>Backend folgt</span>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="hint">
+          <b>Seitenhinweis:</b> Als nächstes implementieren wir B2B CRUD + Dropdown in Bestellungen.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>B2B anlegen</h3>
+        <div class="sub">Noch ohne Backend. Wir machen es im nächsten Schritt komplett (DB + Routes + UI).</div>
+
+        <div class="editorGrid">
+          <div class="field">
+            <div class="label">Name</div>
+            <input class="input inputBig" placeholder="z.B. Firma Muster GmbH" disabled />
+          </div>
+          <button class="btn btn-primary bigbtn" type="button" disabled>B2B Kunde anlegen</button>
+
+          <div class="hint">
+            <b>Next:</b> DB-Tabelle `b2b_customers`, Controller + Actions + dann im Orders-Form auswählbar.
+          </div>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
 </div>
 
 <script>
-  function filterList(listId, q){
-    q = (q || "").toLowerCase().trim();
-    var el = document.getElementById(listId);
-    if(!el) return;
-    var kids = el.querySelectorAll("[data-text]");
-    kids.forEach(function(node){
-      var t = (node.getAttribute("data-text") || "");
-      node.style.display = (!q || t.indexOf(q) >= 0) ? "" : "none";
+  // --- USERS: role -> shop select visibility
+  const uRole = document.getElementById("uRole");
+  const uShopWrap = document.getElementById("uShopWrap");
+  function syncUserRole(){
+    if (!uRole || !uShopWrap) return;
+    uShopWrap.style.display = (uRole.value === "SHOP") ? "" : "none";
+  }
+  if (uRole) { uRole.addEventListener("change", syncUserRole); syncUserRole(); }
+
+  // --- Search filter helper
+  function wireSearch(inputId, listId){
+    const inp = document.getElementById(inputId);
+    const list = document.getElementById(listId);
+    if (!inp || !list) return;
+
+    inp.addEventListener("input", () => {
+      const q = (inp.value || "").toLowerCase().trim();
+      const rows = Array.from(list.querySelectorAll("[data-search]"));
+      rows.forEach(r => {
+        const hay = r.getAttribute("data-search") || "";
+        r.style.display = (!q || hay.includes(q)) ? "" : "none";
+      });
     });
   }
+  wireSearch("uSearch","uList");
+  wireSearch("cSearch","cList");
+  wireSearch("sSearch","sList");
+  wireSearch("bSearch","bList");
+
+  // --- Coffee editor (left -> right)
+  function pickCoffee(id, name, pack){
+    document.getElementById("cMode").textContent = "Bearbeiten";
+    document.getElementById("coffeeCreate").style.display = "none";
+    document.getElementById("coffeeUpdate").style.display = "";
+
+    document.getElementById("cId2").value = id;
+    document.getElementById("cIdView").value = id;
+    document.getElementById("cName2").value = name || "";
+    document.getElementById("cPack2").value = pack || 1;
+    document.getElementById("cDelId").value = id;
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function resetCoffee(){
+    document.getElementById("cMode").textContent = "Neu";
+    document.getElementById("coffeeCreate").style.display = "";
+    document.getElementById("coffeeUpdate").style.display = "none";
+
+    const id = document.getElementById("cId");
+    const nm = document.getElementById("cName");
+    const pk = document.getElementById("cPack");
+    if (id) id.value = "";
+    if (nm) nm.value = "";
+    if (pk) pk.value = 1;
+  }
+  window.pickCoffee = pickCoffee;
+  window.resetCoffee = resetCoffee;
+
+  // --- Shop editor (left -> right)
+  function pickShop(id, name){
+    document.getElementById("sMode").textContent = "Bearbeiten";
+    document.getElementById("shopCreate").style.display = "none";
+    document.getElementById("shopUpdate").style.display = "";
+
+    document.getElementById("sId2").value = id;
+    document.getElementById("sIdView").value = id;
+    document.getElementById("sName2").value = name || "";
+    document.getElementById("sDelId").value = id;
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function resetShop(){
+    document.getElementById("sMode").textContent = "Neu";
+    document.getElementById("shopCreate").style.display = "";
+    document.getElementById("shopUpdate").style.display = "none";
+
+    const id = document.getElementById("sId");
+    const nm = document.getElementById("sName");
+    if (id) id.value = "";
+    if (nm) nm.value = "";
+  }
+  window.pickShop = pickShop;
+  window.resetShop = resetShop;
 </script>
