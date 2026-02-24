@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const pageController = require("../controllers/pageController");
+const inventoryController = require("../controllers/inventoryController");
 const pdfController = require("../controllers/pdfController");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
@@ -19,18 +20,18 @@ router.get("/login", wrap(pageController.renderLogin));
 router.post("/login", wrap(pageController.handleLogin));
 router.post("/logout", wrap(pageController.handleLogout));
 
-// Main pages (must exist in your controller)
+// Main pages
 router.get("/dashboard", requireAuth, wrap(pageController.renderDashboard));
 router.get("/orders", requireAuth, wrap(pageController.renderOrders));
-
-// Admin-only pages (keep them, but guarded)
 router.get("/production", requireAuth, requireRole("ADMIN"), wrap(pageController.renderProduction));
-router.get("/inventory", requireAuth, requireRole("ADMIN"), wrap(pageController.renderInventory));
 router.get("/analytics", requireAuth, requireRole("ADMIN"), wrap(pageController.renderAnalytics));
 router.get("/settings", requireAuth, requireRole("ADMIN"), wrap(pageController.renderSettings));
 router.get("/activity", requireAuth, requireRole("ADMIN"), wrap(pageController.renderActivity));
 
-// PDF route
+// Inventory (Admin only) — now via inventoryController
+router.get("/inventory", requireAuth, requireRole("ADMIN"), wrap(inventoryController.renderInventory));
+
+// PDF (Order)
 router.get("/orders/:id/pdf", requireAuth, wrap(pdfController.orderPdf));
 
 module.exports = router;
